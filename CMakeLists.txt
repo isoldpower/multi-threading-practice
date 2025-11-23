@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16..3.24)
-project (cpp_template
+project (multithreading
         VERSION 0.1.0
-        DESCRIPTION "C++ template project structure"
+        DESCRIPTION "Set of tasks from the LETU university multi-threading course."
         LANGUAGES CXX)
 
 if (NOT CMAKE_BUILD_TYPE)
@@ -10,7 +10,7 @@ endif()
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
 # Libraries list
-add_library(cxx_setup INTERFACE cpp_template/tools)
+add_library(cxx_setup INTERFACE multithreading/utilities)
 
 # General compiler options
 if (MSVC)
@@ -20,7 +20,7 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
 endif()
 
 target_compile_features(cxx_setup
-        INTERFACE cxx_std_17)
+        INTERFACE cxx_std_20)
 target_include_directories(cxx_setup
         INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
 

@@ -1,6 +1,5 @@
-add_library(tools
-        tools.cpp tools.h
-        named_tools.cpp named_tools.h)
+add_library(utilities
+        src/placeholder.cpp)
 
 if (BUILD_TESTING)
     add_executable(tests tests/main.cpp)
@@ -9,4 +8,5 @@ if (BUILD_TESTING)
     gtest_discover_tests(tests)
 endif()
 
-target_link_libraries(tools PUBLIC cxx_setup)
+include_directories(include)
+target_link_libraries(utilities PUBLIC cxx_setup)

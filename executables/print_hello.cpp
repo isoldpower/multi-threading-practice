@@ -1,14 +1,10 @@
-#include <iostream>
-#include <cpp_template/tools/tools.h>
-#include <cpp_template/tools/named_tools.h>
+#include <multithreading/utilities/include/placeholder.h>
 
-using namespace cpp_structure::tools;
+
+using namespace multithreading::utilities;
 
 int main() {
-  PrintHello();
-  std::cout << std::endl;
+    Placeholder::SayHello("Nikita");
 
-  const NamedTools tools("Nikita");
-  tools.printHello();
-  return 0;
+    return 0;
 }
