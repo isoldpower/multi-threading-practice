@@ -9,6 +9,14 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
+# Enable Clang-tidy
+find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
+if(CLANG_TIDY_EXE)
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE}")
+else()
+    message(WARNING "Clang-Tidy EXE not found; Skipping clang-tidy integration...")
+endif()
+
 # Libraries list
 add_library(cxx_setup INTERFACE multithreading/utilities)
 
