@@ -1,2 +1,2 @@
-add_executable(print_hello print_hello.cpp)
-target_link_libraries(print_hello PRIVATE utilities cxx_setup)
+add_executable(unbounded_queue_benchmark unbounded_queue_benchmark.cpp)
+target_link_libraries(unbounded_queue_benchmark PRIVATE utilities cxx_setup)

@@ -1,5 +1,5 @@
-Checks:          'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type'
-WarningsAsErrors: 'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type'
+Checks:          'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace'
+WarningsAsErrors: 'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace'
 HeaderFilterRegex: '^(?!.*/build/).*'
 FormatStyle:     google
 CheckOptions:
