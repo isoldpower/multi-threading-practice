@@ -7,17 +7,17 @@
 namespace multithreading::structures::unbounded_queue {
 
     template <typename T>
-    struct Node {
+    struct FGNode {
     private:
         T value;
-        Node* nextNode;
+        FGNode* nextNode;
     public:
-        explicit Node(const T& value)
+        explicit FGNode(const T& value)
             : value(value)
             , nextNode(nullptr)
         {}
 
-        explicit Node(T&& value)
+        explicit FGNode(T&& value)
             : value(std::move(value))
             , nextNode(nullptr)
         {}
@@ -26,11 +26,11 @@ namespace multithreading::structures::unbounded_queue {
             return value;
         }
 
-        [[nodiscard]] Node* next() const {
+        [[nodiscard]] FGNode* next() const {
             return nextNode;
         }
 
-        void setNext(Node* next) {
+        void setNext(FGNode* next) {
             this->nextNode = next;
         }
     };
@@ -43,12 +43,19 @@ namespace multithreading::structures::unbounded_queue {
 
         std::condition_variable enqueue_condition;
 
-        Node<T>* head;
-        Node<T>* tail;
+        FGNode<T>* head;
+        FGNode<T>* tail;
+
+        void unsafe_enqueue(FGNode<T>* node) {
+            tail->setNext(node);
+            tail = node;
+
+            enqueue_condition.notify_one();
+        }
 
         std::optional<T> unsafe_dequeue() {
-            Node<T>* dummyNode = head;
-            Node<T>* firstValuableNode = dummyNode->next();
+            FGNode<T>* dummyNode = head;
+            FGNode<T>* firstValuableNode = dummyNode->next();
 
             if (firstValuableNode == nullptr) {
                 return std::nullopt;
@@ -62,7 +69,7 @@ namespace multithreading::structures::unbounded_queue {
         }
     public:
         FGLockUnboundedQueue() {
-            head = tail = new Node<T>(T{});
+            head = tail = new FGNode<T>(T{});
         }
 
         ~FGLockUnboundedQueue() {
@@ -72,23 +79,17 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         void enqueue(const T& value) override {
-            auto* node = new Node<T>(value);
+            auto* node = new FGNode<T>(value);
             std::lock_guard lock(tail_mu);
 
-            tail->setNext(node);
-            tail = node;
-
-            enqueue_condition.notify_one();
+            unsafe_enqueue(node);
         }
 
         void enqueue(T&& value) override {
-            auto* node = new Node<T>(std::move(value));
+            auto* node = new FGNode<T>(std::move(value));
             std::lock_guard lock(tail_mu);
 
-            tail->setNext(node);
-            tail = node;
-
-            enqueue_condition.notify_one();
+            unsafe_enqueue(node);
         }
 
         std::optional<T> try_dequeue() override {
@@ -97,17 +98,25 @@ namespace multithreading::structures::unbounded_queue {
             return unsafe_dequeue();
         }
 
-        std::future<std::optional<T>> wait_dequeue(const std::chrono::milliseconds& timeout) override {
+        std::optional<T> wait_dequeue(
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
+            std::unique_lock lock(head_mu);
+
+            if (!enqueue_condition.wait_for(lock, timeout, [this]() {
+                return head->next() != nullptr;
+            })) {
+                return std::nullopt;
+            }
+
+            return unsafe_dequeue();
+        }
+
+        std::future<std::optional<T>> wait_dequeue_async(
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
             return std::async(std::launch::async, [this, timeout]() -> std::optional<T> {
-                std::unique_lock lock(head_mu);
-
-                if (!enqueue_condition.wait_for(lock, timeout, [this]() {
-                    return head->next() != nullptr;
-                })) {
-                    return std::nullopt;
-                }
-
-                return unsafe_dequeue();
+                return this->wait_dequeue(timeout);
             });
         }
 

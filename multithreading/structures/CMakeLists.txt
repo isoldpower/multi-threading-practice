@@ -1,7 +1,5 @@
 add_library(utilities
-        src/unbounded_queue/UnboundedQueue.cpp
-        src/unbounded_queue/FGLockUnboundedQueue.cpp
-        src/unbounded_queue/LockFreeUnboundedQueue.cpp)
+        src/placeholder.cpp)
 
 if (BUILD_TESTING)
     add_executable(tests tests/main.cpp)
