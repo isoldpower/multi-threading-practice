@@ -26,7 +26,7 @@ namespace multithreading::utilities {
         std::optional<T> SafeStart(std::function<T()> task) noexcept {
             try {
                 return task();
-            } catch (const std::exception& exception) {
+            } catch (std::exception& exception) {
                 const std::string prefix = "Uncaught exception at " + appInformation.appName;
                 std::cout << prefix << ": " << exception.what() << '\n';
 

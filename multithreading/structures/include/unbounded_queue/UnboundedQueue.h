@@ -1,7 +1,7 @@
 #pragma once
 
 #include <future>
-
+#include <optional>
 
 namespace multithreading::structures::unbounded_queue {
 

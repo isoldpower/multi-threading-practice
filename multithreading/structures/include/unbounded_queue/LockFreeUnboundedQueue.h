@@ -1,6 +1,7 @@
 #pragma once
 
 #include <semaphore>
+#include <cstddef>
 
 #include "./UnboundedQueue.h"
 
@@ -52,7 +53,7 @@ namespace multithreading::structures::unbounded_queue {
     constexpr size_t DEFAULT_MAX_ATTEMPTS = 100;
 
     template <typename T>
-    class LockFreeUnboundedQueue : public UnboundedQueue<T> {
+    class LockFreeUnboundedQueueImpl {
     private:
         size_t maxAlgorithmDepth;
 
@@ -168,8 +169,8 @@ namespace multithreading::structures::unbounded_queue {
                                      " constructor to bypass this bottleneck");
         }
     public:
-        LockFreeUnboundedQueue()
-            : maxAlgorithmDepth(DEFAULT_MAX_ATTEMPTS)
+        explicit LockFreeUnboundedQueueImpl(const size_t maxAlgorithmDepth)
+            : maxAlgorithmDepth(maxAlgorithmDepth)
             , items_available(0)
         {
             auto* dummy = new LockFreeNode<T>();
@@ -177,45 +178,26 @@ namespace multithreading::structures::unbounded_queue {
             tail.store(dummy, std::memory_order_relaxed);
         }
 
-        LockFreeUnboundedQueue(const LockFreeQueueConfig& config)
-            : maxAlgorithmDepth(config.maxUpdateDepth)
-            , items_available(0)
-        {
-            auto* dummy = new LockFreeNode<T>();
-            head.store(dummy, std::memory_order_relaxed);
-            tail.store(dummy, std::memory_order_relaxed);
-        }
-
-        ~LockFreeUnboundedQueue() {
-            while (LockFreeUnboundedQueue<T>::try_dequeue().has_value()) {}
+        ~LockFreeUnboundedQueueImpl() {
+            while (LockFreeUnboundedQueueImpl<T>::try_dequeue().has_value()) {}
 
             const LockFreeNode<T>* dummy = head.load(std::memory_order_relaxed);
             delete dummy;
         }
 
-        void enqueue(const T& value) override {
-            auto* newNode = new LockFreeNode<T>(value);
-            enqueue_node(newNode);
-
-            // Tell semaphore we have 1 item released
+        void enqueue(LockFreeNode<T>* node) {
+            enqueue_node(node);
+            // Tell semaphore we have 1 item enqueued
             items_available.release(1);
         }
 
-        void enqueue(T&& value) override {
-            auto* newNode = new LockFreeNode<T>(std::move(value));
-            enqueue_node(newNode);
-
-            // Tell semaphore we have 1 item released
-            items_available.release(1);
-        }
-
-        std::optional<T> try_dequeue() override {
+        std::optional<T> try_dequeue() {
             return dequeue_node();
         }
 
         std::optional<T> wait_dequeue(
             const std::chrono::steady_clock::duration& timeout
-        ) override {
+        ) {
             const auto deadline = std::chrono::steady_clock::now() + timeout;
 
             // We don't check the time equality inside the while loop as it is ID-based and
@@ -245,15 +227,7 @@ namespace multithreading::structures::unbounded_queue {
             return try_dequeue();
         }
 
-        std::future<std::optional<T>> wait_dequeue_async(
-            const std::chrono::steady_clock::duration& timeout
-        ) override {
-            return std::async(std::launch::async, [this, timeout]() -> std::optional<T> {
-                return this->wait_dequeue(timeout);
-            });
-        }
-
-        bool is_empty() const override {
+        bool is_empty() const {
             size_t iterator = 0;
 
             while (iterator < maxAlgorithmDepth) {
@@ -273,6 +247,59 @@ namespace multithreading::structures::unbounded_queue {
                                      " there are a lot of threads competing at once. Consider"
                                      " manually increasing the 'maxDepth' property in Queue"
                                      " constructor to bypass this bottleneck");
+        }
+    };
+
+    template <typename T>
+    class LockFreeUnboundedQueue final : public UnboundedQueue<T> {
+    private:
+        LockFreeUnboundedQueueImpl<T> impl;
+    public:
+        explicit LockFreeUnboundedQueue(const LockFreeQueueConfig& config) noexcept
+            : impl({ config.maxUpdateDepth })
+        {}
+
+        LockFreeUnboundedQueue() noexcept
+            : impl({ DEFAULT_MAX_ATTEMPTS })
+        {}
+
+        LockFreeUnboundedQueue(LockFreeUnboundedQueue&& other) = delete;
+        LockFreeUnboundedQueue(const LockFreeUnboundedQueue& other) = delete;
+        LockFreeUnboundedQueue& operator=(const LockFreeUnboundedQueue& other) = delete;
+        LockFreeUnboundedQueue& operator=(LockFreeUnboundedQueue&& other) = delete;
+
+        ~LockFreeUnboundedQueue() override = default;
+
+        void enqueue(const T& value) override {
+            auto* newNode = new LockFreeNode<T>(value);
+            impl.enqueue(newNode);
+        }
+
+        void enqueue(T&& value) override {
+            auto* newNode = new LockFreeNode<T>(std::move(value));
+            impl.enqueue(newNode);
+        }
+
+        std::optional<T> try_dequeue() override {
+            return impl.try_dequeue();
+        }
+
+        std::optional<T> wait_dequeue(
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
+            return impl.wait_dequeue(timeout);
+        }
+
+        std::future<std::optional<T>> wait_dequeue_async(
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
+            return std::async(std::launch::async, [this, timeout]() -> std::optional<T> {
+                return this->impl.wait_dequeue(timeout);
+            });
+        }
+
+        [[nodiscard]] bool is_empty() const override {
+            return impl.is_empty();
         }
     };
 } // namespace multithreading::structures::unbounded_queue

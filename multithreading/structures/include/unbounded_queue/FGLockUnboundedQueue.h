@@ -1,6 +1,6 @@
 #pragma once
 
-#include <map>
+#include <cstddef>
 
 #include "./UnboundedQueue.h"
 
@@ -22,6 +22,11 @@ namespace multithreading::structures::unbounded_queue {
             , nextNode(nullptr)
         {}
 
+        FGNode()
+            : value(T{})
+            , nextNode(nullptr)
+        {}
+
         [[nodiscard]] T& get() {
             return value;
         }
@@ -36,8 +41,8 @@ namespace multithreading::structures::unbounded_queue {
     };
 
     template <typename T>
-    class FGLockUnboundedQueue : public UnboundedQueue<T> {
-    private:
+    class FGLockUnboundedQueueImpl {
+        private:
         mutable std::mutex head_mu;
         mutable std::mutex tail_mu;
 
@@ -67,32 +72,34 @@ namespace multithreading::structures::unbounded_queue {
 
             return result;
         }
+
+        bool unsafe_is_empty() const {
+            return head->next() == nullptr;
+        }
     public:
-        FGLockUnboundedQueue() {
-            head = tail = new FGNode<T>(T{});
+        FGLockUnboundedQueueImpl() {
+            head = tail = new FGNode<T>();
         }
 
-        ~FGLockUnboundedQueue() {
-            while (FGLockUnboundedQueue<T>::try_dequeue().has_value()) {}
+        ~FGLockUnboundedQueueImpl() {
+            std::lock_guard head_lock(head_mu);
+            std::lock_guard tail_lock(tail_mu);
 
+            while (head != tail) {
+                FGNode<T>* dummy = head;
+                head = head->next();
+                delete dummy;
+            }
             delete tail;
         }
 
-        void enqueue(const T& value) override {
-            auto* node = new FGNode<T>(value);
+        void enqueue(FGNode<T>* node) {
             std::lock_guard lock(tail_mu);
 
             unsafe_enqueue(node);
         }
 
-        void enqueue(T&& value) override {
-            auto* node = new FGNode<T>(std::move(value));
-            std::lock_guard lock(tail_mu);
-
-            unsafe_enqueue(node);
-        }
-
-        std::optional<T> try_dequeue() override {
+        std::optional<T> try_dequeue() {
             std::lock_guard lock(head_mu);
 
             return unsafe_dequeue();
@@ -100,11 +107,11 @@ namespace multithreading::structures::unbounded_queue {
 
         std::optional<T> wait_dequeue(
             const std::chrono::steady_clock::duration& timeout
-        ) override {
+        ) {
             std::unique_lock lock(head_mu);
 
             if (!enqueue_condition.wait_for(lock, timeout, [this]() {
-                return head->next() != nullptr;
+                return !this->unsafe_is_empty();
             })) {
                 return std::nullopt;
             }
@@ -112,17 +119,56 @@ namespace multithreading::structures::unbounded_queue {
             return unsafe_dequeue();
         }
 
+        [[nodiscard]] bool is_empty() const {
+            std::lock_guard lock(head_mu);
+            return unsafe_is_empty();
+        }
+    };
+
+    template <typename T>
+    class FGLockUnboundedQueue final : public UnboundedQueue<T> {
+    private:
+        FGLockUnboundedQueueImpl<T> impl;
+    public:
+        FGLockUnboundedQueue() noexcept = default;
+
+        FGLockUnboundedQueue(FGLockUnboundedQueue&& other) = delete;
+        FGLockUnboundedQueue(const FGLockUnboundedQueue& other) = delete;
+        FGLockUnboundedQueue& operator=(const FGLockUnboundedQueue& other) = delete;
+        FGLockUnboundedQueue& operator=(FGLockUnboundedQueue&& other) = delete;
+
+        ~FGLockUnboundedQueue() override = default;
+
+        void enqueue(const T& value) override {
+            auto* node = new FGNode<T>(value);
+            impl.enqueue(node);
+        }
+
+        void enqueue(T&& value) override {
+            auto* node = new FGNode<T>(std::move(value));
+            impl.enqueue(node);
+        }
+
+        std::optional<T> try_dequeue() override {
+            return impl.try_dequeue();
+        }
+
+        std::optional<T> wait_dequeue(
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
+            return impl.wait_dequeue(timeout);
+        }
+
         std::future<std::optional<T>> wait_dequeue_async(
             const std::chrono::steady_clock::duration& timeout
         ) override {
             return std::async(std::launch::async, [this, timeout]() -> std::optional<T> {
-                return this->wait_dequeue(timeout);
+                return impl.wait_dequeue(timeout);
             });
         }
 
         [[nodiscard]] bool is_empty() const override {
-            std::lock_guard lock(head_mu);
-            return head->next() == nullptr;
+            return impl.is_empty();
         }
     };
 } // namespace multithreading::structures::unbounded_queue

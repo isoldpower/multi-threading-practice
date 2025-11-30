@@ -1,2 +1,5 @@
 add_executable(unbounded_queue_benchmark unbounded_queue_benchmark.cpp)
+add_executable(bounded_queue_benchmark bounded_queue_benchmark.cpp)
+
 target_link_libraries(unbounded_queue_benchmark PRIVATE utilities cxx_setup)
+target_link_libraries(bounded_queue_benchmark PRIVATE utilities cxx_setup)
