@@ -185,6 +185,11 @@ namespace multithreading::structures::unbounded_queue {
             delete dummy;
         }
 
+        LockFreeUnboundedQueueImpl(const LockFreeUnboundedQueueImpl&) = delete;
+        LockFreeUnboundedQueueImpl& operator=(const LockFreeUnboundedQueueImpl&) = delete;
+        LockFreeUnboundedQueueImpl(LockFreeUnboundedQueueImpl&&) = delete;
+        LockFreeUnboundedQueueImpl& operator=(LockFreeUnboundedQueueImpl&&) = delete;
+
         void enqueue(LockFreeNode<T>* node) {
             enqueue_node(node);
             // Tell semaphore we have 1 item enqueued
@@ -256,19 +261,22 @@ namespace multithreading::structures::unbounded_queue {
         LockFreeUnboundedQueueImpl<T> impl;
     public:
         explicit LockFreeUnboundedQueue(const LockFreeQueueConfig& config) noexcept
-            : impl({ config.maxUpdateDepth })
+            : UnboundedQueue<T>()
+            , impl({ config.maxUpdateDepth })
         {}
 
         LockFreeUnboundedQueue() noexcept
-            : impl({ DEFAULT_MAX_ATTEMPTS })
+            : UnboundedQueue<T>()
+            , impl(DEFAULT_MAX_ATTEMPTS)
         {}
 
+        ~LockFreeUnboundedQueue() override = default;
+
         LockFreeUnboundedQueue(LockFreeUnboundedQueue&& other) = delete;
+        LockFreeUnboundedQueue& operator=(LockFreeUnboundedQueue&& other) = delete;
         LockFreeUnboundedQueue(const LockFreeUnboundedQueue& other) = delete;
         LockFreeUnboundedQueue& operator=(const LockFreeUnboundedQueue& other) = delete;
-        LockFreeUnboundedQueue& operator=(LockFreeUnboundedQueue&& other) = delete;
 
-        ~LockFreeUnboundedQueue() override = default;
 
         void enqueue(const T& value) override {
             auto* newNode = new LockFreeNode<T>(value);

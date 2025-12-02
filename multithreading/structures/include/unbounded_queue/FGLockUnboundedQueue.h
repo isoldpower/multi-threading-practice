@@ -85,13 +85,24 @@ namespace multithreading::structures::unbounded_queue {
             std::lock_guard head_lock(head_mu);
             std::lock_guard tail_lock(tail_mu);
 
-            while (head != tail) {
-                FGNode<T>* dummy = head;
+            while (true) {
+                // Optimisation purpose. If we put the ID-dependant condition in the while loop,
+                // it will decrease the performance.
+                if (head == tail) {
+                    break;
+                }
+
+                const FGNode<T>* dummy = head;
                 head = head->next();
                 delete dummy;
             }
             delete tail;
         }
+
+        FGLockUnboundedQueueImpl(const FGLockUnboundedQueueImpl& other) = delete;
+        FGLockUnboundedQueueImpl& operator=(const FGLockUnboundedQueueImpl& other) = delete;
+        FGLockUnboundedQueueImpl(FGLockUnboundedQueueImpl&& other) = delete;
+        FGLockUnboundedQueueImpl& operator=(FGLockUnboundedQueueImpl&& other) = delete;
 
         void enqueue(FGNode<T>* node) {
             std::lock_guard lock(tail_mu);

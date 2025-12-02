@@ -101,13 +101,24 @@ namespace multithreading::structures::bounded_queue {
 
             std::lock_guard head_lock(head_mu);
             std::lock_guard tail_lock(tail_mu);
-            while (head != tail) {
-                FGNode<T>* dummy = head;
+            while (true) {
+                // Optimisation purpose. If we put the ID-dependant condition in the while loop,
+                // it will decrease the performance.
+                if (head == tail) {
+                    break;
+                }
+
+                const FGNode<T>* dummy = head;
                 head = head->next();
                 delete dummy;
             }
             delete tail;
         }
+
+        FGLockBoundedQueueImpl(const FGLockBoundedQueueImpl& other) = delete;
+        FGLockBoundedQueueImpl& operator=(const FGLockBoundedQueueImpl& other) = delete;
+        FGLockBoundedQueueImpl(FGLockBoundedQueueImpl&& other) = delete;
+        FGLockBoundedQueueImpl& operator=(FGLockBoundedQueueImpl&& other) = delete;
 
         std::optional<T> try_dequeue() {
             // Quick check to decrease amount of mutex-waiting when queue is obviously empty
@@ -202,7 +213,8 @@ namespace multithreading::structures::bounded_queue {
         FGLockBoundedQueueImpl<T> impl;
     public:
         explicit FGLockBoundedQueue(const size_t sizeLimit) noexcept
-            : impl(sizeLimit)
+            : BoundedQueue<T>()
+            , impl(sizeLimit)
         {}
 
         FGLockBoundedQueue(FGLockBoundedQueue&& other) = delete;

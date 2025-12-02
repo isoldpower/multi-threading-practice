@@ -10,6 +10,11 @@ namespace multithreading::structures::unbounded_queue {
     public:
         virtual ~UnboundedQueue() = default;
 
+        UnboundedQueue(const UnboundedQueue&) = delete;
+        UnboundedQueue& operator=(const UnboundedQueue&) = delete;
+        UnboundedQueue(UnboundedQueue&&) = delete;
+        UnboundedQueue& operator=(UnboundedQueue&&) = delete;
+
         virtual std::optional<T> try_dequeue() = 0;
         virtual std::optional<T> wait_dequeue(
             const std::chrono::steady_clock::duration& timeout
