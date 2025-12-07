@@ -9,6 +9,7 @@ namespace multithreading::structures::bounded_queue {
     template <typename T>
     class BoundedQueue {
     public:
+        BoundedQueue() = default;
         virtual ~BoundedQueue() = default;
 
         BoundedQueue(const BoundedQueue&) = delete;

@@ -1,10 +1,10 @@
 #pragma once
 
-#include <semaphore>
 #include <cstddef>
+#include <semaphore>
 
 #include "./UnboundedQueue.h"
-
+#include "multithreading/utilities/include/performance/AlignedField.h"
 
 namespace multithreading::structures::unbounded_queue {
 
@@ -13,7 +13,7 @@ namespace multithreading::structures::unbounded_queue {
     };
 
     template <typename T>
-    struct LockFreeNode {
+    struct alignas(64) LockFreeNode {
     private:
         T value;
         std::atomic<LockFreeNode*> nextNode;
@@ -57,8 +57,8 @@ namespace multithreading::structures::unbounded_queue {
     private:
         size_t maxAlgorithmDepth;
 
-        std::atomic<LockFreeNode<T>*> head;
-        std::atomic<LockFreeNode<T>*> tail;
+        utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> head;
+        utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> tail;
         std::counting_semaphore<> items_available;
 
         void enqueue_node(LockFreeNode<T>* newNode) {
@@ -66,12 +66,12 @@ namespace multithreading::structures::unbounded_queue {
 
             while (iterator < maxAlgorithmDepth) {
                 iterator++;
-                LockFreeNode<T>* last = tail.load(std::memory_order_acquire);
+                LockFreeNode<T>* last = tail->load(std::memory_order_acquire);
                 LockFreeNode<T>* next = last->next();
 
                 // If the tail updated between reads, then we want to
                 // retry reaching real tail in the next iteration
-                if (last == tail.load()) {
+                if (last == tail->load(std::memory_order_acquire)) {
                     if (next == nullptr) {
                         LockFreeNode<T>* expected = nullptr;
                         if (last->nextAtomic().compare_exchange_weak(
@@ -81,7 +81,7 @@ namespace multithreading::structures::unbounded_queue {
                             std::memory_order_acquire
                         )) {
                             // Write successful, try to update the tail
-                            tail.compare_exchange_weak(
+                            tail->compare_exchange_weak(
                                 last,
                                 newNode,
                                 std::memory_order_release,
@@ -92,7 +92,7 @@ namespace multithreading::structures::unbounded_queue {
                     } else {
                         // At this point our tail didn't change, but the reference to next
                         // got updated on tail. So we want to help our tail to be up-to-date.
-                        tail.compare_exchange_weak(
+                        tail->compare_exchange_weak(
                             last,
                             next,
                             std::memory_order_release,
@@ -113,13 +113,13 @@ namespace multithreading::structures::unbounded_queue {
 
             while (iterator < maxAlgorithmDepth) {
                 iterator++;
-                LockFreeNode<T>* first = head.load(std::memory_order_acquire);
-                LockFreeNode<T>* last = tail.load(std::memory_order_acquire);
+                LockFreeNode<T>* first = head->load(std::memory_order_acquire);
+                LockFreeNode<T>* last = tail->load(std::memory_order_acquire);
                 LockFreeNode<T>* firstValuable = first->next();
 
                 // Check if data is valid and didn't change between reads. If it did - just continue
                 // and redo the action in the next iteration.
-                if (first == head.load(std::memory_order_acquire)) {
+                if (first == head->load(std::memory_order_acquire)) {
                     if (first == last) {
                         if (firstValuable == nullptr) {
                             // If our head equals to tail - it means that the queue is empty
@@ -128,7 +128,7 @@ namespace multithreading::structures::unbounded_queue {
                         } else {
                             // But if the firstValuable node is not nullptr - it means that tail
                             // wasn't updated, so its lagging behind. Help advance it
-                            tail.compare_exchange_weak(
+                            tail->compare_exchange_weak(
                                 last,
                                 firstValuable,
                                 std::memory_order_release,
@@ -140,7 +140,7 @@ namespace multithreading::structures::unbounded_queue {
                     } else {
                         T value = firstValuable->get();
 
-                        if (head.compare_exchange_weak(
+                        if (head->compare_exchange_weak(
                             first,
                             firstValuable,
                             std::memory_order_release,
@@ -174,14 +174,14 @@ namespace multithreading::structures::unbounded_queue {
             , items_available(0)
         {
             auto* dummy = new LockFreeNode<T>();
-            head.store(dummy, std::memory_order_relaxed);
-            tail.store(dummy, std::memory_order_relaxed);
+            head->store(dummy, std::memory_order_relaxed);
+            tail->store(dummy, std::memory_order_relaxed);
         }
 
         ~LockFreeUnboundedQueueImpl() {
             while (LockFreeUnboundedQueueImpl<T>::try_dequeue().has_value()) {}
 
-            const LockFreeNode<T>* dummy = head.load(std::memory_order_relaxed);
+            const LockFreeNode<T>* dummy = head->load(std::memory_order_relaxed);
             delete dummy;
         }
 
@@ -238,12 +238,12 @@ namespace multithreading::structures::unbounded_queue {
             while (iterator < maxAlgorithmDepth) {
                 iterator++;
 
-                LockFreeNode<T>* first = head.load(std::memory_order_acquire);
-                LockFreeNode<T>* last = tail.load(std::memory_order_acquire);
+                LockFreeNode<T>* first = head->load(std::memory_order_acquire);
+                LockFreeNode<T>* last = tail->load(std::memory_order_acquire);
 
                 // Memory consistency check. We want to make sure that the first didn't change
                 // while we were reading last.
-                if (first == head.load(std::memory_order_acquire)) {
+                if (first == head->load(std::memory_order_acquire)) {
                     return first == last;
                 }
             }

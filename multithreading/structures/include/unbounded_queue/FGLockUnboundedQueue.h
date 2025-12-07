@@ -42,7 +42,7 @@ namespace multithreading::structures::unbounded_queue {
 
     template <typename T>
     class FGLockUnboundedQueueImpl {
-        private:
+    private:
         mutable std::mutex head_mu;
         mutable std::mutex tail_mu;
 
@@ -141,7 +141,10 @@ namespace multithreading::structures::unbounded_queue {
     private:
         FGLockUnboundedQueueImpl<T> impl;
     public:
-        FGLockUnboundedQueue() noexcept = default;
+        FGLockUnboundedQueue() noexcept
+            : UnboundedQueue<T>()
+            , impl()
+        {}
 
         FGLockUnboundedQueue(FGLockUnboundedQueue&& other) = delete;
         FGLockUnboundedQueue(const FGLockUnboundedQueue& other) = delete;

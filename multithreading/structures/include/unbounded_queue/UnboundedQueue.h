@@ -9,6 +9,7 @@ namespace multithreading::structures::unbounded_queue {
     class UnboundedQueue {
     public:
         virtual ~UnboundedQueue() = default;
+        UnboundedQueue() = default;
 
         UnboundedQueue(const UnboundedQueue&) = delete;
         UnboundedQueue& operator=(const UnboundedQueue&) = delete;

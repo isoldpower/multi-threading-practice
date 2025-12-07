@@ -1,5 +1,5 @@
-Checks:          'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace'
-WarningsAsErrors: 'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace'
+Checks:          'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace,-portability-template-virtual-member-function,-altera-id-dependent-backward-branch'
+WarningsAsErrors: 'clang-diagnostic-*,clang-analyzer-*,cppcoreguidelines-*,modernize-*,*,-clang-diagnostic-error,-llvmlibc-*,-llvm-include-order,-misc-include-cleaner,-fuchsia-trailing-return,-modernize-use-trailing-return-type,-altera-unroll-loops,-misc-use-anonymous-namespace,-portability-template-virtual-member-function,-altera-id-dependent-backward-branch'
 HeaderFilterRegex: '^(?!.*/build/).*'
 FormatStyle:     google
 CheckOptions:
