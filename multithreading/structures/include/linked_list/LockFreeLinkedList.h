@@ -1,16 +1,29 @@
 #pragma once
 
+#include <atomic>
+#include <cstdint>
+
 #include "./LinkedList.h"
+
 
 namespace multithreading::structures::linked_list {
 
     template <typename T>
-    struct alignas(8) LockFreeNode {
+    struct alignas(8) LockFreeNode : public LinkedListNode<T> {
     private:
-        std::atomic<LockFreeNode<T>*> next_node;
-        T node_value;
-
         static constexpr uintptr_t MARK_BIT = 0x1;
+    public:
+        std::atomic<LockFreeNode<T>*> next_node;
+
+        LockFreeNode()
+            : LinkedListNode<T>(T{})
+            , next_node(nullptr)
+        {}
+
+        explicit LockFreeNode(T value)
+            : LinkedListNode<T>(value)
+            , next_node(nullptr)
+        {}
 
         static bool is_marked(LockFreeNode<T>* node) {
             return (reinterpret_cast<uintptr_t>(node) & MARK_BIT) != 0;
@@ -18,7 +31,7 @@ namespace multithreading::structures::linked_list {
 
         static LockFreeNode<T>* unmark_node(LockFreeNode<T>* node) {
             return reinterpret_cast<LockFreeNode<T>*>(
-                reinterpret_cast<uintptr_t>(node & ~MARK_BIT)
+                reinterpret_cast<uintptr_t>(node) & ~MARK_BIT
             );
         }
 
@@ -27,16 +40,6 @@ namespace multithreading::structures::linked_list {
                 reinterpret_cast<uintptr_t>(node) | MARK_BIT
             );
         }
-    public:
-        LockFreeNode()
-            : next_node(nullptr)
-            , node_value(T{})
-        {}
-
-        explicit LockFreeNode(T value)
-            : next_node(nullptr)
-            , node_value(value)
-        {}
 
         [[nodiscard]] T value() {
             return this->node_value;
@@ -196,7 +199,7 @@ namespace multithreading::structures::linked_list {
             }
         }
 
-        LinkedListNode<T>* push_at(T item, const size_t index) {
+        ssize_t push_at(T item, const size_t index) {
             LockFreeNode<T>* new_node = new LockFreeNode<T>(item);
 
             while (true) {
@@ -204,7 +207,7 @@ namespace multithreading::structures::linked_list {
                 // If we are out-of-bounds in traverse then simply delete the new node and return.
                 if (current_node == nullptr) {
                     delete new_node;
-                    return nullptr;
+                    return -1;
                 }
 
                 LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
@@ -230,7 +233,7 @@ namespace multithreading::structures::linked_list {
                                 std::memory_order_relaxed);
                         }
 
-                        return new_node;
+                        return 0;
                     } else {
                         // Our current_node changed somewhere in the process.
                         // Retry on next iteration.
@@ -301,10 +304,10 @@ namespace multithreading::structures::linked_list {
 
                 // At this point last_node should already be unmarked, but we try to unmark
                 // one more time for extra safety.
-                LockFreeNode<T>* unmarked_last = LinkedListNode<T>::unmark_node(last_node);
+                LockFreeNode<T>* unmarked_last = LockFreeNode<T>::unmark_node(last_node);
                 T node_value = unmarked_last->value();
                 LockFreeNode<T>* after_last = unmarked_last->next_node.load(std::memory_order_acquire);
-                LockFreeNode<T>* marked_after = LinkedListNode<T>::mark_node(after_last);
+                LockFreeNode<T>* marked_after = LockFreeNode<T>::mark_node(after_last);
                 if (!unmarked_last->next_node.compare_exchange_weak(
                     after_last,
                     marked_after,
@@ -474,15 +477,16 @@ namespace multithreading::structures::linked_list {
     };
 
     template <typename T>
-    class LockFreeLinkedList final : public LinkedList<T> {
+    class LockFreeLinkedList : public LinkedList<T> {
     private:
         std::unique_ptr<LockFreeLinkedListImpl<T>> impl;
     public:
-        ~LockFreeLinkedList() override = default;
-
         LockFreeLinkedList()
-            : impl(std::make_unique<LockFreeLinkedListImpl<T>>())
+            : LinkedList<T>()
+            , impl(std::make_unique<LockFreeLinkedListImpl<T>>())
         {}
+
+        ~LockFreeLinkedList() override = default;
 
         LockFreeLinkedList(const LockFreeLinkedList<T>& other) = delete;
         LockFreeLinkedList<T>& operator=(const LockFreeLinkedList<T>& other) = delete;
@@ -492,31 +496,13 @@ namespace multithreading::structures::linked_list {
         void push_front(T item) override {
             impl->push_front(item);
         }
-        void push_front(T&& item) override {
-            impl->push_front(std::move(item));
-        }
-        void push_front(const T& item) override {
-            impl->push_front(item);
-        }
-
         void push_back(T item) override {
             impl->push_back(item);
         }
-        void push_back(T&& item) override {
-            impl->push_back(std::move(item));
-        }
-        void push_back(const T& item) override {
-            impl->push_back(item);
-        }
+        bool push_at(T item, const size_t index) override {
+            const ssize_t operation_result = impl->push_at(item, index);
 
-        LinkedListNode<T>* push_at(const T& item, const size_t index) override {
-            return impl->push_at(item, index);
-        }
-        LinkedListNode<T>* push_at(T item, const size_t index) override {
-            return impl->push_at(item, index);
-        }
-        LinkedListNode<T>* push_at(T&& item, const size_t index) override {
-            return impl->push_at(std::move(item), index);
+            return operation_result == 0;
         }
 
         std::optional<T> pop_front() override {
@@ -537,9 +523,6 @@ namespace multithreading::structures::linked_list {
         }
         bool contains(T value) override {
             return impl->contains(value);
-        }
-        LinkedListNode<T>* find(T value) override {
-            return impl->find(value);
         }
     };
 } // namespace multithreading::structures::linked_list

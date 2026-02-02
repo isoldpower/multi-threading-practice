@@ -302,7 +302,7 @@ namespace multithreading::structures::linked_list {
 
                 iterator_node->dispose();
                 iterator_node = iterator_next;
-                iterator_next = iterator_node->iterator_next();
+                iterator_next = iterator_node->next();
             }
 
             // Free the last node and return false.
@@ -331,7 +331,7 @@ namespace multithreading::structures::linked_list {
 
                 iterator_node->dispose();
                 iterator_node = iterator_next;
-                iterator_next = iterator_node->iterator_next();
+                iterator_next = iterator_node->next();
             }
 
             // Free the last node and return false.
@@ -357,30 +357,10 @@ namespace multithreading::structures::linked_list {
         void push_front(T item) override {
             impl->push_front(item);
         }
-        void push_front(T&& item) override {
-            impl->push_front(std::move(item));
-        }
-        void push_front(const T& item) override {
-            impl->push_front(item);
-        }
-
         void push_back(T item) override {
             impl->push_back(item);
         }
-        void push_back(T&& item) override {
-            impl->push_back(std::move(item));
-        }
-        void push_back(const T& item) override {
-            impl->push_back(item);
-        }
-
-        LinkedListNode<T>* push_at(T item, size_t index) override {
-            return impl->push_at(item, index);
-        }
-        LinkedListNode<T>* push_at(T&& item, size_t index) override {
-            return impl->push_at(std::move(item), index);
-        }
-        LinkedListNode<T>* push_at(const T& item, size_t index) override {
+        bool push_at(T item, size_t index) override {
             return impl->push_at(item, index);
         }
 
@@ -404,10 +384,6 @@ namespace multithreading::structures::linked_list {
 
         bool contains(T value) override {
             return impl->contains(value);
-        }
-
-        LinkedListNode<T>* find(T value) override {
-            return impl->find(value);
         }
     };
 } // namespace multithreading::structures::linked_list

@@ -12,7 +12,7 @@ namespace executables::benchmarks {
         std::shared_ptr<
             multithreading::structures::unbounded_queue::UnboundedQueue<int>
         > benchmark_queue;
-    public:
+
         explicit UnboundedQueueBenchmark(
             const std::shared_ptr<
                 multithreading::structures::unbounded_queue::UnboundedQueue<int>> &queue
