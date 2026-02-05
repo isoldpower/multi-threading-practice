@@ -9,4 +9,4 @@ if (BUILD_TESTING)
 endif()
 
 include_directories(include)
-target_link_libraries(structures PUBLIC cxx_setup)
+target_link_libraries(structures PUBLIC cxx_setup utilities)

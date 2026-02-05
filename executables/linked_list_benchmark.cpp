@@ -6,7 +6,7 @@
 
 #include <multithreading/structures/include/linked_list/LinkedList.h>
 #include <multithreading/structures/include/linked_list/LockFreeLinkedList.h>
-// #include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
+#include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
 
 #include <array>
 #include <ostream>
@@ -17,7 +17,7 @@
 
 using multithreading::structures::linked_list::LinkedList;
 using multithreading::structures::linked_list::LockFreeLinkedList;
-// using multithreading::structures::linked_list::FGLockLinkedList;
+using multithreading::structures::linked_list::FGLockLinkedList;
 
 using multithreading::utilities::benchmark::BenchmarkTask;
 using multithreading::utilities::benchmark::ProducerConsumerBenchmark;
@@ -70,10 +70,10 @@ auto main() -> int {
             std::make_shared<LockFreeLinkedList<int>>(),
             "Lock-free Linked List Benchmark"
         ),
-        // BenchmarkTask<LinkedList<int>>(
-        //     std::make_shared<FGLockLinkedList<int>>(),
-        //     "Fine-Grained Linked List Benchmark"
-        // ),
+        BenchmarkTask<LinkedList<int>>(
+            std::make_shared<FGLockLinkedList<int>>(),
+            "Fine-Grained Linked List Benchmark"
+        ),
     };
 
     try {
