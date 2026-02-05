@@ -5,8 +5,6 @@
 #include <thread>
 #include <utility>
 
-// TODO: Replace MAX_THREADS with vector
-
 namespace multithreading::utilities::performance {
 
     constexpr size_t EPOCH_WINDOW_SIZE = 2;

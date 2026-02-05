@@ -66,11 +66,14 @@ namespace multithreading::structures::linked_list {
             LockFreeNode<T>* unmarked_after_next = LockFreeNode<T>::unmark_node(after_next);
 
             // Help advance (physical delete) the next_node, then skip.
-            node->next_node.compare_exchange_weak(
+            if (node->next_node.compare_exchange_weak(
                 next_node,
                 unmarked_after_next,
                 std::memory_order_release,
-                std::memory_order_acquire);
+                std::memory_order_acquire
+            )) {
+                epoch_reclamation.retire_reference(unmarked_next);
+            }
             // Ignore if we fail.
         }
 
@@ -264,10 +267,22 @@ namespace multithreading::structures::linked_list {
                     return std::nullopt;
                 } else {
                     // The next is not marked, move to deletion.
-                    T node_value = current_head->value();
                     LockFreeNode<T>* next_node = current_head->next_node.load(std::memory_order_acquire);
-                    LockFreeNode<T>* marked_next = LockFreeNode<T>::mark_node(next_node);
+                    if (LockFreeNode<T>::is_marked(next_node)) {
+                        LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
+                        if (head->next_node.compare_exchange_weak(
+                            current_head,
+                            unmarked_next,
+                            std::memory_order_release,
+                            std::memory_order_acquire
+                        )) {
+                            epoch_reclamation.retire_reference(current_head);
+                        }
 
+                        continue;
+                    }
+
+                    LockFreeNode<T>* marked_next = LockFreeNode<T>::mark_node(next_node);
                     if (current_head->next_node.compare_exchange_weak(
                         next_node,
                         marked_next,
@@ -275,16 +290,17 @@ namespace multithreading::structures::linked_list {
                         std::memory_order_acquire
                     )) {
                         // The logical deletion was successful - move to the physical deletion.
-                        epoch_reclamation.retire_reference(current_head);
+                        T node_value = current_head->value();
                         LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
-                        head->next_node.compare_exchange_weak(
+                        if (head->next_node.compare_exchange_weak(
                             current_head,
                             unmarked_next,
                             std::memory_order_release,
-                            std::memory_order_relaxed);
+                            std::memory_order_relaxed
+                        )) {
+                            epoch_reclamation.retire_reference(current_head);
+                        }
 
-                        // Ignore the CAS result and finish the deletion. delete nullptr semantics
-                        // are also valid in C++.
                         return node_value;
                     } else {
                         // CAS failed, someone updated the head->next. Retry in next iteration.
@@ -316,9 +332,15 @@ namespace multithreading::structures::linked_list {
                 // At this point last_node should already be unmarked, but we try to unmark
                 // one more time for extra safety.
                 LockFreeNode<T>* unmarked_last = LockFreeNode<T>::unmark_node(last_node);
-                T node_value = unmarked_last->value();
                 LockFreeNode<T>* after_last = unmarked_last->next_node.load(std::memory_order_acquire);
+                if (LockFreeNode<T>::is_marked(after_last)) {
+                    // Someone else is deleting this node
+                    this->try_help_advance(before_last, last_node);
+                    continue;
+                }
+
                 LockFreeNode<T>* marked_after = LockFreeNode<T>::mark_node(after_last);
+                T node_value = unmarked_last->value();
                 if (!unmarked_last->next_node.compare_exchange_weak(
                     after_last,
                     marked_after,
@@ -330,15 +352,19 @@ namespace multithreading::structures::linked_list {
 
                 // At this point the logical deletion with marking was successful. Now we need
                 // to physically delete the node from the list AND from memory.
-                epoch_reclamation.retire_reference(unmarked_last);
-                before_last->next_node.compare_exchange_weak(
+                if (!before_last->next_node.compare_exchange_weak(
                     unmarked_last,
                     nullptr,
                     std::memory_order_release,
-                    std::memory_order_relaxed);
+                    std::memory_order_relaxed
+                )) {
+                    epoch_reclamation.retire_reference(unmarked_last);
+                }
+
                 // We ignore all the potential CAS fails because after the logical delete
                 // succeeded our tail and before_last are already in a safe state. The potential
-                // fails only mean that other threads may have helped advancing the state.
+                // fails only mean that other threads may have helped advancing the state and
+                // retiring the node.
                 tail.compare_exchange_weak(
                     unmarked_last,
                     before_last,
@@ -385,12 +411,14 @@ namespace multithreading::structures::linked_list {
                     )) {
                         // Successful logical delete. Move to physical delete. The next_node
                         // is unmarked at this point due to the check above.
-                        epoch_reclamation.retire_reference(unmarked_referenced);
-                        before_node->next_node.compare_exchange_weak(
+                        if (before_node->next_node.compare_exchange_weak(
                             unmarked_referenced,
                             next_node,
                             std::memory_order_release,
-                            std::memory_order_relaxed);
+                            std::memory_order_relaxed
+                        )) {
+                            epoch_reclamation.retire_reference(unmarked_referenced);
+                        }
 
                         // If we popped the last node - try advance the tail to reference the
                         // previous node.
