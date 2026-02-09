@@ -6,51 +6,38 @@
 #include <multithreading/utilities/include/benchmark/BenchmarkMeasurer.h>
 #include <multithreading/utilities/include/benchmark/MultithreadingTask.h>
 #include <multithreading/utilities/include/benchmark/mcmp/MCMPBenchmarkRunner.h>
-
+#include <multithreading/utilities/include/benchmark/monitor/SpeedMeasurement.h>
+#include <multithreading/utilities/include/benchmark/display/ConsoleOutput.h>
 #include <ostream>
 
 #include "./benchmarks/include/ThreadConfig.h"
 #include "./benchmarks/include/mcmp/UnboundedQueueMCMPBenchmark.h"
 
-using multithreading::structures::unbounded_queue::FGLockUnboundedQueue;
-using multithreading::structures::unbounded_queue::UnboundedQueue;
-using multithreading::structures::unbounded_queue::FGLockUnboundedQueue;
-using multithreading::structures::unbounded_queue::LockFreeUnboundedQueue;
-using multithreading::structures::unbounded_queue::LockFreeQueueConfig;
-
-using multithreading::utilities::benchmark::BenchmarkTask;
-using multithreading::utilities::benchmark::ProducerConsumerBenchmark;
-using multithreading::utilities::benchmark::BenchmarkMeasurer;
-using multithreading::utilities::benchmark::BenchmarkRunner;
-using multithreading::utilities::benchmark::mcmp::MCMPBenchmarkRunner;
-
-using executables::benchmarks::mcmp::UnboundedQueueMCMPBenchmark;
-using executables::benchmarks::THREADS_COUNT;
-using executables::benchmarks::THREAD_SIZE;
-
+using namespace multithreading::structures::unbounded_queue;
+using namespace multithreading::utilities::benchmark;
 
 namespace executables {
+
     template <size_t N>
     static void benchmarkApplication(const std::array<BenchmarkTask<UnboundedQueue<int>>, N>& queues) {
-        const multithreading::utilities::benchmark::BenchmarkMatrixDefinition matrix {
-            .per_thread_sizes = std::vector{ THREAD_SIZE, THREAD_SIZE * 10 },
-            .threads_count = std::vector{ THREADS_COUNT, THREADS_COUNT * 2 }
+        const BenchmarkMatrixDefinition matrix {
+            .per_thread_sizes = std::vector{ benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10 },
+            .threads_count = std::vector{ benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2 }
         };
-        const BenchmarkMeasurer matrixMeasurer(matrix);
+        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType>>(RefMeasurementsList<DurationType>(
+            new SpeedMeasurement({ .verbose = "Execution Time" })
+        ));
+        const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
 
         for (const auto &queue : queues) {
             std::shared_ptr<ProducerConsumerBenchmark> const benchmark =
-                std::make_shared<UnboundedQueueMCMPBenchmark>(queue.structure);
+                std::make_shared<benchmarks::mcmp::UnboundedQueueMCMPBenchmark>(queue.structure);
             std::shared_ptr<BenchmarkRunner> const runner =
-                std::make_shared<MCMPBenchmarkRunner>(benchmark);
+                std::make_shared<mcmp::MCMPBenchmarkRunner>(benchmark);
 
             std::cout << queue.title << "\n";
             const auto results = matrixMeasurer.measure_benchmark(runner);
-            for (const auto &[threads_count, thread_size, execution_time] : results) {
-                std::cout << "Threads (" << threads_count << ") Size (" << thread_size << ")\n";
-                std::cout << "\tExecution time: " << execution_time.count() << "mics\n";
-            }
-            std::cout << '\n';
+            display::displayBenchmarkResults(results);
         }
     }
 } // namespace executables

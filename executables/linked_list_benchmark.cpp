@@ -1,56 +1,45 @@
+#include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
+#include <multithreading/structures/include/linked_list/LinkedList.h>
+#include <multithreading/structures/include/linked_list/LockFreeLinkedList.h>
 #include <multithreading/utilities/include/Application.h>
 #include <multithreading/utilities/include/benchmark/BenchmarkMatrix.h>
 #include <multithreading/utilities/include/benchmark/BenchmarkMeasurer.h>
 #include <multithreading/utilities/include/benchmark/MultithreadingTask.h>
 #include <multithreading/utilities/include/benchmark/mcmp/MCMPBenchmarkRunner.h>
-
-#include <multithreading/structures/include/linked_list/LinkedList.h>
-#include <multithreading/structures/include/linked_list/LockFreeLinkedList.h>
-#include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
-
+#include <multithreading/utilities/include/benchmark/monitor/BenchmarkMonitor.h>
+#include <multithreading/utilities/include/benchmark/monitor/SpeedMeasurement.h>
+#include <multithreading/utilities/include/benchmark/display/ConsoleOutput.h>
 #include <array>
-#include <ostream>
-#include <cstdint>
+#include <list>
 
 #include "./benchmarks/include/ThreadConfig.h"
 #include "./benchmarks/include/mcmp/LinkedListMCMPBenchmark.h"
 
-using multithreading::structures::linked_list::LinkedList;
-using multithreading::structures::linked_list::LockFreeLinkedList;
-using multithreading::structures::linked_list::FGLockLinkedList;
-
-using multithreading::utilities::benchmark::BenchmarkTask;
-using multithreading::utilities::benchmark::ProducerConsumerBenchmark;
-using multithreading::utilities::benchmark::BenchmarkMeasurer;
-using multithreading::utilities::benchmark::BenchmarkRunner;
-using multithreading::utilities::benchmark::mcmp::MCMPBenchmarkRunner;
-using executables::benchmarks::mcmp::LinkedListMCMPBenchmark;
-
-using executables::benchmarks::THREADS_COUNT;
-using executables::benchmarks::THREAD_SIZE;
+using namespace multithreading::structures::linked_list;
+using namespace multithreading::utilities::benchmark;
 
 namespace executables {
+
     template <size_t N>
     static void benchmarkApplication(const std::array<BenchmarkTask<LinkedList<int>>, N>& lists) {
-        const multithreading::utilities::benchmark::BenchmarkMatrixDefinition matrix {
-            .per_thread_sizes = std::vector{ THREAD_SIZE, THREAD_SIZE * 10 },
-            .threads_count = std::vector{ THREADS_COUNT, THREADS_COUNT * 2 }
+        const BenchmarkMatrixDefinition matrix {
+            .per_thread_sizes = std::vector{ benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10 },
+            .threads_count = std::vector{ benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2 }
         };
-        const BenchmarkMeasurer matrixMeasurer(matrix);
+        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType>>(RefMeasurementsList<DurationType>(
+            new SpeedMeasurement({ .verbose = "Execution Time" })
+        ));
+        const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
 
         for (const auto &list : lists) {
             std::shared_ptr<ProducerConsumerBenchmark> const benchmark =
-                std::make_shared<LinkedListMCMPBenchmark>(list.structure);
+                std::make_shared<benchmarks::mcmp::LinkedListMCMPBenchmark>(list.structure);
             std::shared_ptr<BenchmarkRunner> const runner =
-                std::make_shared<MCMPBenchmarkRunner>(benchmark);
+                std::make_shared<mcmp::MCMPBenchmarkRunner>(benchmark);
 
             std::cout << list.title << "\n";
             const auto results = matrixMeasurer.measure_benchmark(runner);
-            for (const auto &[threads_count, thread_size, execution_time] : results) {
-                std::cout << "Threads (" << threads_count << ") Size (" << thread_size << ")\n";
-                std::cout << "\tExecution time: " << execution_time.count() << "mics\n";
-            }
-            std::cout << '\n';
+            display::displayBenchmarkResults(results);
         }
     }
 } // namespace executables
