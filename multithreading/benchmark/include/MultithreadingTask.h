@@ -4,10 +4,11 @@
 #include <utility>
 
 
-namespace multithreading::utilities::benchmark {
+namespace multithreading::benchmark {
 
     template <typename TStruct>
     struct alignas(64) BenchmarkTask {
+    public:
         std::string title;
         std::shared_ptr<TStruct> structure;
 
@@ -27,4 +28,4 @@ namespace multithreading::utilities::benchmark {
         BenchmarkTask(BenchmarkTask&&) noexcept = default;
         BenchmarkTask& operator=(BenchmarkTask&&) noexcept = default;
     };
-} // namespace multithreading::utilities::benchmark
+} // namespace multithreading::benchmark

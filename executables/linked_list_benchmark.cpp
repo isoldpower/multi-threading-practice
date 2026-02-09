@@ -1,14 +1,14 @@
+#include <multithreading/benchmark/include/BenchmarkMatrix.h>
+#include <multithreading/benchmark/include/BenchmarkMeasurer.h>
+#include <multithreading/benchmark/include/MultithreadingTask.h>
+#include <multithreading/benchmark/include/BenchmarkMonitor.h>
+#include <multithreading/benchmark/include/SpeedMeasurement.h>
+#include <multithreading/benchmark/include/mcmp/MCMPBenchmarkRunner.h>
+#include <multithreading/benchmark/include/views/ConsoleOutput.h>
 #include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
 #include <multithreading/structures/include/linked_list/LinkedList.h>
 #include <multithreading/structures/include/linked_list/LockFreeLinkedList.h>
 #include <multithreading/utilities/include/Application.h>
-#include <multithreading/utilities/include/benchmark/BenchmarkMatrix.h>
-#include <multithreading/utilities/include/benchmark/BenchmarkMeasurer.h>
-#include <multithreading/utilities/include/benchmark/MultithreadingTask.h>
-#include <multithreading/utilities/include/benchmark/mcmp/MCMPBenchmarkRunner.h>
-#include <multithreading/utilities/include/benchmark/monitor/BenchmarkMonitor.h>
-#include <multithreading/utilities/include/benchmark/monitor/SpeedMeasurement.h>
-#include <multithreading/utilities/include/benchmark/display/ConsoleOutput.h>
 #include <array>
 #include <list>
 
@@ -16,7 +16,7 @@
 #include "./benchmarks/include/mcmp/LinkedListMCMPBenchmark.h"
 
 using namespace multithreading::structures::linked_list;
-using namespace multithreading::utilities::benchmark;
+using namespace multithreading::benchmark;
 
 namespace executables {
 
@@ -32,14 +32,14 @@ namespace executables {
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
 
         for (const auto &list : lists) {
-            std::shared_ptr<ProducerConsumerBenchmark> const benchmark =
+            std::shared_ptr<mcmp::ProducerConsumerBenchmark> const benchmark =
                 std::make_shared<benchmarks::mcmp::LinkedListMCMPBenchmark>(list.structure);
             std::shared_ptr<BenchmarkRunner> const runner =
                 std::make_shared<mcmp::MCMPBenchmarkRunner>(benchmark);
 
             std::cout << list.title << "\n";
             const auto results = matrixMeasurer.measure_benchmark(runner);
-            display::displayBenchmarkResults(results);
+            views::ConsoleOutput::displayBenchmarkResults(results);
         }
     }
 } // namespace executables

@@ -1,12 +1,11 @@
-#include <utility>
-
 #pragma once
 
+#include <utility>
+#include <optional>
 
-namespace multithreading::utilities::benchmark {
+namespace multithreading::benchmark {
 
-    struct BenchmarkMeasurementTemplate {
-    public:
+    struct alignas(32) BenchmarkMeasurementTemplate {
         std::string verbose;
     };
 
@@ -55,4 +54,4 @@ namespace multithreading::utilities::benchmark {
 
     template <typename ...TArgs>
     using RefMeasurementsList = std::tuple<BenchmarkMeasurement<TArgs>*...>;
-} // namespace multithreading::utilities::benchmark
+} // namespace multithreading::benchmark

@@ -1,13 +1,12 @@
 #pragma once
 
-#include <functional>
-
 #include "./BenchmarkMatrix.h"
+#include "./BenchmarkMeasurement.h"
+#include "./BenchmarkMonitor.h"
 #include "./BenchmarkRunner.h"
-#include "monitor/BenchmarkMeasurement.h"
-#include "monitor/BenchmarkMonitor.h"
 
-namespace multithreading::utilities::benchmark {
+
+namespace multithreading::benchmark {
 
     template <typename ...TMeasures>
     struct alignas(64) BenchmarkResult {
@@ -57,4 +56,4 @@ namespace multithreading::utilities::benchmark {
             return benchmark_results;
         }
     };
-} // namespace multithreading::utilities::benchmark
+} // namespace multithreading::benchmark

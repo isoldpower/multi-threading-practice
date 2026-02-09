@@ -1,13 +1,13 @@
 #pragma once
 
-#include <multithreading/utilities/include/benchmark/ProducerConsumerBenchmark.h>
+#include <multithreading/benchmark/include/mcmp/ProducerConsumerBenchmark.h>
 
 #include "../UnboundedQueueBenchmark.h"
 
 namespace executables::benchmarks::mcmp {
 
     class UnboundedQueueMCMPBenchmark final
-        : public multithreading::utilities::benchmark::ProducerConsumerBenchmark
+        : public multithreading::benchmark::mcmp::ProducerConsumerBenchmark
         , UnboundedQueueBenchmark
     {
     public:

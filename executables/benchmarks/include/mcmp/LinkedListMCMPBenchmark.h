@@ -1,16 +1,16 @@
 #pragma once
 
-#include <multithreading/utilities/include/benchmark/ProducerConsumerBenchmark.h>
-
+#include <multithreading/structures/include/linked_list/FGLockLinkedList.h>
+#include <multithreading/benchmark/include/mcmp/ProducerConsumerBenchmark.h>
 #include <memory>
 
 #include "../LinkedListBenchmark.h"
-#include "multithreading/structures/include/linked_list/FGLockLinkedList.h"
+
 
 namespace executables::benchmarks::mcmp {
 
     class LinkedListMCMPBenchmark final
-        : public multithreading::utilities::benchmark::ProducerConsumerBenchmark
+        : public multithreading::benchmark::mcmp::ProducerConsumerBenchmark
         , LinkedListBenchmark
     {
     public:

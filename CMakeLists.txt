@@ -18,7 +18,8 @@ else()
 endif()
 
 # Libraries list
-add_library(cxx_setup INTERFACE multithreading/utilities)
+add_library(cxx_setup INTERFACE multithreading/utilities
+        multithreading/benchmark/src/SpeedMeasurement.cpp)
 
 # General compiler options
 if (MSVC)

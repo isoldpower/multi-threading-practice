@@ -1,20 +1,20 @@
+#include <multithreading/benchmark/include/BenchmarkMatrix.h>
+#include <multithreading/benchmark/include/BenchmarkMeasurer.h>
+#include <multithreading/benchmark/include/MultithreadingTask.h>
+#include <multithreading/benchmark/include/SpeedMeasurement.h>
+#include <multithreading/benchmark/include/mcmp/MCMPBenchmarkRunner.h>
+#include <multithreading/benchmark/include/views/ConsoleOutput.h>
 #include <multithreading/structures/include/unbounded_queue/FGLockUnboundedQueue.h>
 #include <multithreading/structures/include/unbounded_queue/LockFreeUnboundedQueue.h>
 #include <multithreading/structures/include/unbounded_queue/UnboundedQueue.h>
 #include <multithreading/utilities/include/Application.h>
-#include <multithreading/utilities/include/benchmark/BenchmarkMatrix.h>
-#include <multithreading/utilities/include/benchmark/BenchmarkMeasurer.h>
-#include <multithreading/utilities/include/benchmark/MultithreadingTask.h>
-#include <multithreading/utilities/include/benchmark/mcmp/MCMPBenchmarkRunner.h>
-#include <multithreading/utilities/include/benchmark/monitor/SpeedMeasurement.h>
-#include <multithreading/utilities/include/benchmark/display/ConsoleOutput.h>
 #include <ostream>
 
 #include "./benchmarks/include/ThreadConfig.h"
 #include "./benchmarks/include/mcmp/UnboundedQueueMCMPBenchmark.h"
 
 using namespace multithreading::structures::unbounded_queue;
-using namespace multithreading::utilities::benchmark;
+using namespace multithreading::benchmark;
 
 namespace executables {
 
@@ -30,14 +30,14 @@ namespace executables {
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
 
         for (const auto &queue : queues) {
-            std::shared_ptr<ProducerConsumerBenchmark> const benchmark =
+            std::shared_ptr<mcmp::ProducerConsumerBenchmark> const benchmark =
                 std::make_shared<benchmarks::mcmp::UnboundedQueueMCMPBenchmark>(queue.structure);
             std::shared_ptr<BenchmarkRunner> const runner =
                 std::make_shared<mcmp::MCMPBenchmarkRunner>(benchmark);
 
             std::cout << queue.title << "\n";
             const auto results = matrixMeasurer.measure_benchmark(runner);
-            display::displayBenchmarkResults(results);
+            views::ConsoleOutput::displayBenchmarkResults(results);
         }
     }
 } // namespace executables

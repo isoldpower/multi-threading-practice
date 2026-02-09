@@ -1,7 +1,7 @@
 #pragma once
 
-#include <multithreading/utilities/include/benchmark/BenchmarkMeasurer.h>
 #include <multithreading/utilities/include/performance/AlignedField.h>
+
 #include <future>
 #include <optional>
 

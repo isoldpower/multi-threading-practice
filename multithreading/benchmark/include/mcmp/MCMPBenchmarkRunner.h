@@ -1,12 +1,13 @@
 #pragma once
 
-#include "../BenchmarkMatrix.h"
-#include "../ProducerConsumerBenchmark.h"
-#include "../BenchmarkRunner.h"
 #include <memory>
 
+#include "./ProducerConsumerBenchmark.h"
+#include "../BenchmarkMatrix.h"
+#include "../BenchmarkRunner.h"
 
-namespace multithreading::utilities::benchmark::mcmp {
+
+namespace multithreading::benchmark::mcmp {
 
     class MCMPBenchmarkRunner : public BenchmarkRunner {
     private:
@@ -22,4 +23,4 @@ namespace multithreading::utilities::benchmark::mcmp {
             const BenchmarkMatrixItem& item
         ) override;
     };
-} // namespace multithreading::utilities::benchmark::mcmp
+} // namespace multithreading::benchmark::mcmp

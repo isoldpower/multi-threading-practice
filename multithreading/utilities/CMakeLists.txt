@@ -1,7 +1,5 @@
 add_library(utilities
-        src/benchmark/mcmp/MCMPBenchmarkRunner.cpp
-        include/benchmark/monitor/SpeedMeasurement.h
-        include/ConsoleOutput.h)
+        src/placeholder.cpp)
 
 if (BUILD_TESTING)
     add_executable(utilities_tests tests/main.cpp)

@@ -1,9 +1,9 @@
-#include "../../../include/benchmark/mcmp/MCMPBenchmarkRunner.h"
+#include "../../include/mcmp/MCMPBenchmarkRunner.h"
 
 #include <thread>
 
 
-namespace multithreading::utilities::benchmark::mcmp {
+namespace multithreading::benchmark::mcmp {
 
     MCMPBenchmarkRunner::MCMPBenchmarkRunner(
         const std::shared_ptr<ProducerConsumerBenchmark>& benchmark
@@ -35,4 +35,4 @@ namespace multithreading::utilities::benchmark::mcmp {
             }
         }
     }
-} // namespace multithreading::utilities::benchmark::mcmp
+} // namespace multithreading::benchmark::mcmp

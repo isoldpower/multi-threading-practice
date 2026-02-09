@@ -1,0 +1,14 @@
+#pragma once
+
+#include "BenchmarkMatrix.h"
+
+namespace multithreading::benchmark {
+
+    class BenchmarkRunner {
+    public:
+        virtual ~BenchmarkRunner() = default;
+        BenchmarkRunner() = default;
+
+        virtual void run_benchmark_with(const BenchmarkMatrixItem& item) = 0;
+    };
+} // namespace multithreading::benchmark

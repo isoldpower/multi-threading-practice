@@ -7,7 +7,8 @@
 
 #include "./BenchmarkMeasurement.h"
 
-namespace multithreading::utilities::benchmark {
+
+namespace multithreading::benchmark {
 
     constexpr size_t DEFAULT_HEARTBEAT_RATE = 10;
 
@@ -129,4 +130,4 @@ namespace multithreading::utilities::benchmark {
             return results;
         }
     };
-} // namespace multithreading::utilities::benchmark
+} // namespace multithreading::benchmark

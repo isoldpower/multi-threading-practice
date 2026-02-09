@@ -3,7 +3,7 @@
 #include <vector>
 
 
-namespace multithreading::utilities::benchmark {
+namespace multithreading::benchmark {
 
     struct alignas(64) BenchmarkMatrixDefinition {
     public:
@@ -16,4 +16,4 @@ namespace multithreading::utilities::benchmark {
         size_t threads_count;
         size_t thread_size;
     };
-} // namespace multithreading::utilities::benchmark
+} // namespace multithreading::benchmark
