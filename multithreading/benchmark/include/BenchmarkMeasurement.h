@@ -2,6 +2,7 @@
 
 #include <utility>
 #include <optional>
+#include <string>
 
 namespace multithreading::benchmark {
 
@@ -13,10 +14,16 @@ namespace multithreading::benchmark {
     struct BenchmarkMeasurementResult {
     private:
         BenchmarkMeasurementTemplate reference_template;
+        std::string unit;
         T result;
     public:
-        explicit BenchmarkMeasurementResult(BenchmarkMeasurementTemplate measurement, T result)
+        explicit BenchmarkMeasurementResult(
+            BenchmarkMeasurementTemplate measurement,
+            T result,
+            std::string unit
+        )
             : reference_template(std::move(measurement))
+            , unit(std::move(unit))
             , result(result)
         {}
 
@@ -26,6 +33,10 @@ namespace multithreading::benchmark {
 
         [[nodiscard]] std::optional<T> get_measurement() const {
             return result;
+        }
+
+        [[nodiscard]] std::string get_unit() const {
+            return unit;
         }
     };
 

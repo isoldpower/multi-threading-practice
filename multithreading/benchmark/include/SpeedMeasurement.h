@@ -7,7 +7,7 @@
 
 namespace multithreading::benchmark {
 
-    using DurationType = std::chrono::high_resolution_clock::duration;
+    using DurationType = long long;
 
     class SpeedMeasurement final : public BenchmarkMeasurement<DurationType>
     {

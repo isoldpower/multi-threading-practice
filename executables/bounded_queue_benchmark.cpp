@@ -8,6 +8,8 @@
 #include <multithreading/structures/include/bounded_queue/FGLockBoundedQueue.h>
 #include <multithreading/structures/include/bounded_queue/LockFreeBoundedQueue.h>
 #include <multithreading/utilities/include/Application.h>
+#include <multithreading/benchmark/include/AverageMemoryMeasurement.h>
+#include <multithreading/benchmark/include/PeakMemoryMeasurement.h>
 
 #include <ostream>
 
@@ -26,9 +28,11 @@ namespace executables {
             .per_thread_sizes = std::vector{ benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10 },
             .threads_count = std::vector{ benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2 }
         };
-        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType>>(
-            RefMeasurementsList<DurationType>(
-                new SpeedMeasurement({ .verbose = "Execution Time" })
+        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType, double, double>>(
+            RefMeasurementsList<DurationType, double, double>(
+                new SpeedMeasurement({ .verbose = "Execution Time" }),
+                new PeakMemoryMeasurement({ .verbose = "Peak Memory Overhead" }),
+                new AverageMemoryMeasurement({ .verbose = "Average Memory Usage"  })
             )
         );
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);

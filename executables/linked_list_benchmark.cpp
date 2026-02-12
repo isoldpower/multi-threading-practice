@@ -1,7 +1,7 @@
 #include <multithreading/benchmark/include/BenchmarkMatrix.h>
 #include <multithreading/benchmark/include/BenchmarkMeasurer.h>
-#include <multithreading/benchmark/include/MultithreadingTask.h>
 #include <multithreading/benchmark/include/BenchmarkMonitor.h>
+#include <multithreading/benchmark/include/MultithreadingTask.h>
 #include <multithreading/benchmark/include/SpeedMeasurement.h>
 #include <multithreading/benchmark/include/mcmp/MCMPBenchmarkRunner.h>
 #include <multithreading/benchmark/include/views/ConsoleOutput.h>
@@ -9,6 +9,9 @@
 #include <multithreading/structures/include/linked_list/LinkedList.h>
 #include <multithreading/structures/include/linked_list/LockFreeLinkedList.h>
 #include <multithreading/utilities/include/Application.h>
+#include <multithreading/benchmark/include/AverageMemoryMeasurement.h>
+#include <multithreading/benchmark/include/PeakMemoryMeasurement.h>
+
 #include <array>
 #include <list>
 
@@ -26,9 +29,13 @@ namespace executables {
             .per_thread_sizes = std::vector{ benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10 },
             .threads_count = std::vector{ benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2 }
         };
-        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType>>(RefMeasurementsList<DurationType>(
-            new SpeedMeasurement({ .verbose = "Execution Time" })
-        ));
+        const auto monitor = std::make_shared<BenchmarkMonitor<DurationType, double, double>>(
+            RefMeasurementsList<DurationType, double, double>(
+                new SpeedMeasurement({ .verbose = "Execution Time" }),
+                new PeakMemoryMeasurement({ .verbose = "Peak Memory Overhead" }),
+                new AverageMemoryMeasurement({ .verbose = "Average Memory Usage"  })
+            )
+        );
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
 
         for (const auto &list : lists) {

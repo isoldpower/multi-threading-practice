@@ -17,7 +17,7 @@ namespace multithreading::benchmark::views {
                 std::cout << "Threads (" << threads_count << ") Size (" << thread_size << ")\n";
                 std::apply([&](const auto&... measurement) {
                     ((std::cout << "\t" << measurement.get_verbose() << ": "
-                        << measurement.get_measurement().value() << std::endl), ...);
+                        << measurement.get_measurement().value() << measurement.get_unit() << std::endl), ...);
                 }, measurements);
             }
             std::cout << '\n';
