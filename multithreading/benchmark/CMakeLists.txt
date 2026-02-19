@@ -2,8 +2,7 @@ add_library(benchmark
         src/mcmp/MCMPBenchmarkRunner.cpp
         src/SpeedMeasurement.cpp
         src/PeakMemoryMeasurement.cpp
-        src/AverageMemoryMeasurement.cpp
-        include/Units.h)
+        src/AverageMemoryMeasurement.cpp)
 
 if (BUILD_TESTING)
     add_executable(benchmark_tests tests/main.cpp)

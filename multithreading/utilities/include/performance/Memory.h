@@ -1,7 +1,7 @@
 #pragma once
 
+#include "../Units.h"
 #include <sys/resource.h>
-#include <cstdint>
 #include <iostream>
 #include <ostream>
 
@@ -13,8 +13,6 @@
 #endif
 
 namespace multithreading::utilities::performance {
-
-    constexpr size_t KiB = 1024;
 
     class MemoryMeasurement {
     public:
@@ -30,7 +28,7 @@ namespace multithreading::utilities::performance {
             return memory_usage;
         }
 
-        static size_t currentMemoryUsage() {
+        static double currentMemoryUsage() {
 #ifdef __linux__
             std::ifstream status_stream("/proc/self/status", ios_base::in);
             std::string line;
@@ -55,7 +53,7 @@ namespace multithreading::utilities::performance {
                 &msg_size
             );
             if (kerr == KERN_SUCCESS) {
-                return basic_info.resident_size / KiB;
+                return static_cast<double>(basic_info.resident_size) / static_cast<double>(KiB);
             }
 
             std::cerr << "MemoryMeasurement::currentMemoryUsage() failed "

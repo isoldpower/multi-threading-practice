@@ -8,19 +8,20 @@ namespace multithreading::benchmark {
     PeakMemoryMeasurement::PeakMemoryMeasurement(const BenchmarkMeasurementTemplate& measurement)
         : BenchmarkMeasurement(measurement)
         , baseline(0)
-        , peak(0)
+        , snapshots({})
+        , recorded_result(0)
     {}
 
     void PeakMemoryMeasurement::start() {
         is_started = true;
-        baseline = utilities::performance::MemoryMeasurement::peakMemoryUsage();
+        baseline = utilities::performance::MemoryMeasurement::currentMemoryUsage();
+        snapshots.clear();
     }
 
     void PeakMemoryMeasurement::snapshot() {
-        const double peak_usage = utilities::performance::MemoryMeasurement::peakMemoryUsage();
-        const double relative_peak = peak_usage - baseline;
+        const double current_usage = utilities::performance::MemoryMeasurement::currentMemoryUsage();
 
-        peak = std::max(peak, relative_peak);
+        snapshots.emplace_back(current_usage);
     }
 
     void PeakMemoryMeasurement::stop() {
@@ -28,6 +29,13 @@ namespace multithreading::benchmark {
             this->snapshot();
             is_measured = true;
             is_started = false;
+
+            const double highest_snapshot = *std::ranges::max_element(
+                snapshots.begin(),
+                snapshots.end(),
+                std::ranges::less{},
+                std::identity{});
+            recorded_result = std::abs(highest_snapshot - baseline);
         }
     }
 
@@ -36,6 +44,6 @@ namespace multithreading::benchmark {
             return std::nullopt;
         }
 
-        return BenchmarkMeasurementResult(information, peak, "kB");
+        return BenchmarkMeasurementResult(information, recorded_result, "kB");
     }
 } // namespace multithreading::benchmark

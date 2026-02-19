@@ -1,6 +1,6 @@
 #include "../include/SpeedMeasurement.h"
 
-#include "../include/Units.h"
+#include <multithreading/utilities/include/Units.h>
 
 namespace multithreading::benchmark {
 
@@ -35,7 +35,7 @@ namespace multithreading::benchmark {
             end_time - start_time
         );
         const DurationType duration_ms = std::round(
-            static_cast<double>(duration.count()) / static_cast<double>(NS_PER_MICS)
+            static_cast<double>(duration.count()) / static_cast<double>(utilities::NS_PER_MICS)
         );
 
         return BenchmarkMeasurementResult(

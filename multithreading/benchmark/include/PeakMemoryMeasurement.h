@@ -11,7 +11,9 @@ namespace multithreading::benchmark {
     class PeakMemoryMeasurement final : public BenchmarkMeasurement<double> {
     private:
         double baseline;
-        double peak;
+        std::vector<double> snapshots;
+
+        double recorded_result;
     public:
         ~PeakMemoryMeasurement() override = default;
 
