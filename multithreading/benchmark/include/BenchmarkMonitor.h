@@ -16,7 +16,7 @@ namespace multithreading::benchmark {
     template <typename ...TMeasures>
     class BenchmarkMonitor {
     private:
-        std::tuple<BenchmarkMeasurement<TMeasures>*...> measurements;
+        std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements;
         std::chrono::high_resolution_clock::duration heartbeat;
 
         std::atomic<bool> benchmark_running;
@@ -27,7 +27,7 @@ namespace multithreading::benchmark {
             while (benchmark_running.load(std::memory_order_acquire)) {
                 {
                     std::scoped_lock lock(measurements_mutex);
-                    std::apply([&](auto*... measurements) {
+                    std::apply([&](auto&... measurements) {
                         (measurements->snapshot(), ...);
                     }, measurements);
                 }
@@ -37,18 +37,18 @@ namespace multithreading::benchmark {
         }
     public:
         BenchmarkMonitor(
-            const std::tuple<BenchmarkMeasurement<TMeasures>*...>& measurements,
+            std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements,
             const size_t heartbeat
         )
-            : measurements(measurements)
+            : measurements(std::move(measurements))
             , heartbeat(std::chrono::milliseconds(heartbeat))
             , benchmark_running(false)
         {}
 
         explicit BenchmarkMonitor(
-            const std::tuple<BenchmarkMeasurement<TMeasures>*...>& measurements
+            std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements
         )
-            : measurements(measurements)
+            : measurements(std::move(measurements))
             , heartbeat(std::chrono::milliseconds(DEFAULT_HEARTBEAT_RATE))
             , benchmark_running(false)
         {}
@@ -72,7 +72,7 @@ namespace multithreading::benchmark {
 
             {
                 std::scoped_lock lock(measurements_mutex);
-                std::apply([&](auto*... measurements) {
+                std::apply([&](auto&... measurements) {
                    (measurements->start(), ...);
                }, measurements);
             }
@@ -102,7 +102,7 @@ namespace multithreading::benchmark {
             heartbeat_thread.join();
             {
                 std::scoped_lock lock(measurements_mutex);
-                std::apply([&](auto*... measurements) {
+                std::apply([&](auto&... measurements) {
                     (measurements->stop(), ...);
                 }, measurements);
             }
@@ -121,7 +121,7 @@ namespace multithreading::benchmark {
 
             std::tuple<BenchmarkMeasurementResult<TMeasures>...> results = [&]() {
                 std::scoped_lock lock(measurements_mutex);
-                return std::apply([](auto*... measurement) {
+                return std::apply([](auto&... measurement) {
                     return std::tuple<BenchmarkMeasurementResult<TMeasures>...>{
                         measurement->get_result().value()...
                     };

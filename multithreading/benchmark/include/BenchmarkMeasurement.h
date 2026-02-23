@@ -64,5 +64,5 @@ namespace multithreading::benchmark {
     using MeasurementsList = std::tuple<BenchmarkMeasurement<TArgs>...>;
 
     template <typename ...TArgs>
-    using RefMeasurementsList = std::tuple<BenchmarkMeasurement<TArgs>*...>;
+    using RefMeasurementsList = std::tuple<std::unique_ptr<BenchmarkMeasurement<TArgs>>...>;
 } // namespace multithreading::benchmark
