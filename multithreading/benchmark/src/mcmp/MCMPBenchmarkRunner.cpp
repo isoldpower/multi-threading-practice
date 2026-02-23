@@ -1,7 +1,7 @@
 #include "../../include/mcmp/MCMPBenchmarkRunner.h"
 
 #include <thread>
-
+#include <cmath>
 
 namespace multithreading::benchmark::mcmp {
 
@@ -14,7 +14,7 @@ namespace multithreading::benchmark::mcmp {
     void MCMPBenchmarkRunner::run_benchmark_with(
         const BenchmarkMatrixItem& item
     ) {
-        const auto half_threads = static_cast<size_t>(floor(item.threads_count / 2));
+        const auto half_threads = static_cast<size_t>(std::floor(item.threads_count / 2));
         std::vector<std::thread> threads {};
         threads.reserve(item.threads_count);
 

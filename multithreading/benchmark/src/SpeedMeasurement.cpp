@@ -1,5 +1,6 @@
 #include "../include/SpeedMeasurement.h"
 
+#include <cmath>
 #include <multithreading/utilities/include/Units.h>
 
 namespace multithreading::benchmark {

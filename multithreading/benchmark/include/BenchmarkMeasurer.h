@@ -5,6 +5,7 @@
 #include "./BenchmarkMonitor.h"
 #include "./BenchmarkRunner.h"
 
+#include <memory>
 
 namespace multithreading::benchmark {
 

@@ -30,7 +30,7 @@ namespace multithreading::utilities::performance {
 
         static double currentMemoryUsage() {
 #ifdef __linux__
-            std::ifstream status_stream("/proc/self/status", ios_base::in);
+            std::ifstream status_stream("/proc/self/status", std::ios_base::in);
             std::string line;
             while (std::getline(status_stream, line)) {
                 if (line.find("VmRSS:") != std::string::npos) {

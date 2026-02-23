@@ -4,6 +4,7 @@
 #include <iostream>
 #include <thread>
 #include <tuple>
+#include <mutex>
 
 #include "./BenchmarkMeasurement.h"
 

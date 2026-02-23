@@ -1,5 +1,6 @@
 #include "../include/PeakMemoryMeasurement.h"
 
+#include <algorithm>
 #include <multithreading/utilities/include/performance/Memory.h>
 
 
@@ -31,8 +32,8 @@ namespace multithreading::benchmark {
             is_started = false;
 
             const double highest_snapshot = *std::ranges::max_element(
-                snapshots.begin(),
-                snapshots.end(),
+                this->snapshots.begin(),
+                this->snapshots.end(),
                 std::ranges::less{},
                 std::identity{});
             recorded_result = std::abs(highest_snapshot - baseline);
