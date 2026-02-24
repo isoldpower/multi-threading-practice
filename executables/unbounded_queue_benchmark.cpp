@@ -17,22 +17,24 @@
 #include "./benchmarks/include/ThreadConfig.h"
 #include "./benchmarks/include/mcmp/UnboundedQueueMCMPBenchmark.h"
 
+// NOLINTBEGIN(google-build-using-namespace)
 using namespace multithreading::structures::unbounded_queue;
 using namespace multithreading::benchmark;
+// NOLINTEND(google-build-using-namespace)
 
 namespace executables {
 
     template <size_t N>
     static void benchmarkApplication(const std::array<BenchmarkTask<UnboundedQueue<int>>, N>& queues) {
         const BenchmarkMatrixDefinition matrix {
-            .per_thread_sizes = std::vector{ benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10 },
-            .threads_count = std::vector{ benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2 }
+            .per_thread_sizes = std::vector{ {benchmarks::THREAD_SIZE, benchmarks::THREAD_SIZE * 10}, std::allocator<size_t>{} },
+            .threads_count = std::vector{ {benchmarks::THREADS_COUNT, benchmarks::THREADS_COUNT * 2}, std::allocator<size_t>{} }
         };
         const auto monitor = std::make_shared<BenchmarkMonitor<DurationType, double, double>>(
             RefMeasurementsList<DurationType, double, double>(
-                std::make_unique<SpeedMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Execution Time" }),
-                std::make_unique<PeakMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Peak Memory Overhead" }),
-                std::make_unique<AverageMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Average Memory Usage"  })
+                std::make_unique<SpeedMeasurement>(BenchmarkMeasurementTemplate{ .verbose = std::string{"Execution Time", std::allocator<char>{}} }),
+                std::make_unique<PeakMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = std::string{"Peak Memory Overhead", std::allocator<char>{}} }),
+                std::make_unique<AverageMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = std::string{"Average Memory Usage", std::allocator<char>{}} })
             )
         );
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
@@ -53,8 +55,8 @@ namespace executables {
 auto main() -> int {
     multithreading::utilities::Application benchmarkApplication(
         multithreading::utilities::ApplicationInfo<int>{
-            .appName="Unbounded Queue Benchmark",
-            .appVersion="1.0.0",
+            .appName=std::string{"Unbounded Queue Benchmark", std::allocator<char>{}},
+            .appVersion=std::string{"1.0.0", std::allocator<char>{}},
             .beforeTask = std::nullopt,
             .afterTask = std::nullopt
         }
@@ -64,11 +66,11 @@ auto main() -> int {
             std::make_shared<LockFreeUnboundedQueue<int>>(LockFreeQueueConfig{
                 .maxUpdateDepth = 10000
             }),
-            "Lock-free Queue Benchmark"
+	    std::string{"Lock-free Queue Benchmark", std::allocator<char>{}}
         ),
         BenchmarkTask<UnboundedQueue<int>>(
             std::make_shared<FGLockUnboundedQueue<int>>(),
-            "Fine-Grained Lock Queue Benchmark"
+            std::string{"Fine-Grained Lock Queue Benchmark", std::allocator<char>{}}
         )
     };
 

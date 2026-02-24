@@ -15,13 +15,13 @@ namespace multithreading::benchmark {
     void AverageMemoryMeasurement::start() {
         is_started = true;
         snapshots.clear();
-        baseline = utilities::performance::MemoryMeasurement::currentMemoryUsage();
+        baseline = static_cast<size_t>(utilities::performance::MemoryMeasurement::currentMemoryUsage());
     }
 
     void AverageMemoryMeasurement::snapshot() {
         if (is_started) {
-            const size_t memory_usage =
-                utilities::performance::MemoryMeasurement::currentMemoryUsage();
+            const auto memory_usage =
+                static_cast<size_t>(utilities::performance::MemoryMeasurement::currentMemoryUsage());
             const std::chrono::nanoseconds timestamp =
                 std::chrono::high_resolution_clock::now().time_since_epoch();
 
@@ -53,9 +53,12 @@ namespace multithreading::benchmark {
                 return accumulated + (item.second - baseline);
             }
         );
-        const double snapshots_average = static_cast<double>(snapshots_summary) /
+        const auto snapshots_average = static_cast<double>(snapshots_summary) /
             static_cast<double>(snapshots.size());
 
-        return BenchmarkMeasurementResult(information, snapshots_average, "kB");
+        return BenchmarkMeasurementResult(
+			information,
+		       	snapshots_average,
+		       	std::string{"kB", std::allocator<char>{}});
     }
 } // namespace multithreading::benchmark

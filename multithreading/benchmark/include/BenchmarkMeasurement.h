@@ -3,6 +3,8 @@
 #include <utility>
 #include <optional>
 #include <string>
+#include <memory>
+
 
 namespace multithreading::benchmark {
 

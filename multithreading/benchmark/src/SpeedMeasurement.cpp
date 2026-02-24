@@ -1,5 +1,6 @@
 #include "../include/SpeedMeasurement.h"
 
+#include <string>
 #include <cmath>
 #include <multithreading/utilities/include/Units.h>
 
@@ -35,14 +36,12 @@ namespace multithreading::benchmark {
         const auto duration = std::chrono::duration_cast<std::chrono::high_resolution_clock::duration>(
             end_time - start_time
         );
-        const DurationType duration_ms = std::round(
-            static_cast<double>(duration.count()) / static_cast<double>(utilities::NS_PER_MICS)
-        );
+	const double duration_ms = static_cast<double>(duration.count()) / static_cast<double>(utilities::NS_PER_MICS);
 
         return BenchmarkMeasurementResult(
             information,
-            duration_ms,
-            "mics"
+            std::llround(duration_ms),
+            std::string{"mics", std::allocator<char>{}}
         );
     }
 } // namespace multithreading::benchmark

@@ -9,7 +9,7 @@ namespace multithreading::benchmark {
     PeakMemoryMeasurement::PeakMemoryMeasurement(const BenchmarkMeasurementTemplate& measurement)
         : BenchmarkMeasurement(measurement)
         , baseline(0)
-        , snapshots({})
+        , snapshots(std::vector<double>{}, std::allocator<double>{})
         , recorded_result(0)
     {}
 
@@ -45,6 +45,10 @@ namespace multithreading::benchmark {
             return std::nullopt;
         }
 
-        return BenchmarkMeasurementResult(information, recorded_result, "kB");
+        return BenchmarkMeasurementResult(
+		information,
+		recorded_result,
+		std::string{"kB", std::allocator<char>{}}
+	);
     }
 } // namespace multithreading::benchmark
