@@ -12,6 +12,7 @@
 #include <multithreading/benchmark/include/PeakMemoryMeasurement.h>
 
 #include <ostream>
+#include <memory>
 
 #include "./benchmarks/include/ThreadConfig.h"
 #include "./benchmarks/include/mcmp/UnboundedQueueMCMPBenchmark.h"
@@ -29,9 +30,9 @@ namespace executables {
         };
         const auto monitor = std::make_shared<BenchmarkMonitor<DurationType, double, double>>(
             RefMeasurementsList<DurationType, double, double>(
-                new SpeedMeasurement({ .verbose = "Execution Time" }),
-                new PeakMemoryMeasurement({ .verbose = "Peak Memory Overhead" }),
-                new AverageMemoryMeasurement({ .verbose = "Average Memory Usage"  })
+                std::make_unique<SpeedMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Execution Time" }),
+                std::make_unique<PeakMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Peak Memory Overhead" }),
+                std::make_unique<AverageMemoryMeasurement>(BenchmarkMeasurementTemplate{ .verbose = "Average Memory Usage"  })
             )
         );
         const BenchmarkMeasurer matrixMeasurer(matrix, monitor);
