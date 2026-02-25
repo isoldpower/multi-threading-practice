@@ -1,6 +1,7 @@
 add_library(utilities
         src/placeholder.cpp
-        include/performance/Memory.h)
+        include/performance/Memory.h
+        include/threads/ThreadBarrier.h)
 
 if (BUILD_TESTING)
     add_executable(utilities_tests tests/main.cpp)

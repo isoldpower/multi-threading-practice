@@ -1,7 +1,6 @@
 #pragma once
 
 #include <optional>
-#include <cstdint>
 
 
 namespace multithreading::structures::linked_list {

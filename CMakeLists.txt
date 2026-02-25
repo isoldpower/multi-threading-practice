@@ -9,6 +9,11 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
+# Enable GTest library
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CTest)
+endif()
+
 # Enable Clang-tidy
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
@@ -18,8 +23,10 @@ else()
 endif()
 
 # Libraries list
-add_library(cxx_setup INTERFACE multithreading/utilities
-        multithreading/benchmark/src/SpeedMeasurement.cpp)
+add_library(cxx_setup INTERFACE
+        multithreading/utilities
+        multithreading/structures
+        multithreading/benchmark)
 
 # General compiler options
 if (MSVC)
