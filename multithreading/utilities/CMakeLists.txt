@@ -1,7 +1,9 @@
 add_library(utilities
         src/placeholder.cpp
         include/performance/Memory.h
-        include/threads/ThreadBarrier.h)
+        include/threads/ThreadBarrier.h
+        include/RandomEvent.h
+        include/threads/RandomGenerator.h)
 
 if (BUILD_TESTING)
     add_executable(utilities_tests tests/main.cpp)

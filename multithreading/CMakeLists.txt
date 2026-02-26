@@ -1,3 +1,4 @@
 add_subdirectory(utilities)
 add_subdirectory(structures)
 add_subdirectory(benchmark)
+add_subdirectory(parallel_computing)

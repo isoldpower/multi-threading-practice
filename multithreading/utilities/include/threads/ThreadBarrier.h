@@ -50,7 +50,6 @@ namespace multithreading::utilities::threads {
             try {
                 start_promise.set_value();
             } catch (std::future_error& error) {
-                std::cerr << error.what() << '\n';
                 // Can't terminate on a flight. Ignore the error
             }
 

@@ -100,15 +100,12 @@ namespace multithreading::structures::linked_list {
             FGLockNode<T>* new_node = new FGLockNode<T>(item);
 
             // Update last node's contents with internal lock.
+            std::lock_guard<std::mutex> lock(tail_mutex);
             tail->operate();
             tail->set_next(new_node);
             tail->dispose();
+            tail = new_node;
 
-            // Safely update the tail reference with mutex lock, then release the lock.
-            {
-                std::lock_guard<std::mutex> lock(tail_mutex);
-                tail = new_node;
-            }
             // Increase the current size of the list.
             increment_count();
         }
@@ -200,18 +197,23 @@ namespace multithreading::structures::linked_list {
 
             // Find the second-to-last node to update the reference.
             iterator_next->operate();
-            while (iterator_next->next() != nullptr) {
+            while (true) {
+                FGLockNode<T>* next = iterator_next->next();
+                if (next == nullptr) {
+                    break;
+                }
+
+                next->operate();
                 iterator_node->dispose();
                 iterator_node = iterator_next;
-                iterator_next = iterator_node->next();
-                iterator_next->operate();
+                iterator_next = next;
             }
 
             iterator_node->set_next(nullptr);
             // Delete the last node (iterator_next) and update the pre-last (iterator_node)
             // and tail references.
             {
-                std::lock_guard<std::mutex> lock(tail_mutex);
+                std::scoped_lock lock(tail_mutex);
                 tail = iterator_node;
             }
             T result = iterator_next->value();
@@ -241,7 +243,7 @@ namespace multithreading::structures::linked_list {
             // and hold the locks on them to safely modify further.
             iterator_next->operate();
             for (size_t i = 0; i < index; i++) {
-                FGLockNode<T>* next_node = iterator_node->next();
+                FGLockNode<T>* next_node = iterator_next->next();
                 if (next_node == nullptr) {
                     iterator_next->dispose();
                     iterator_node->dispose();
