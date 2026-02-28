@@ -40,6 +40,10 @@ namespace multithreading::structures::linked_list {
             this->next_node = node;
         }
 
+        bool try_operate() {
+            return node_mutex.try_lock();
+        }
+
         void operate() {
             node_mutex.lock();
         }
@@ -99,15 +103,25 @@ namespace multithreading::structures::linked_list {
         void push_back(T item) {
             FGLockNode<T>* new_node = new FGLockNode<T>(item);
 
-            // Update last node's contents with internal lock.
-            std::scoped_lock<std::mutex> lock(tail_mutex);
-            tail->operate();
-            tail->set_next(new_node);
-            tail->dispose();
-            tail = new_node;
+            while (true) {
+                std::unique_lock<std::mutex> tail_lock(tail_mutex);
 
-            // Increase the current size of the list.
-            increment_count();
+                if (tail->try_operate()) {
+                    // Update last node's contents after successfully locking it.
+                    tail->set_next(new_node);
+                    tail->dispose();
+                    tail = new_node;
+
+                    // Increase the current size of the list.
+                    increment_count();
+                    return;
+                } else {
+                    // Unlock the tail mutex and reschedule this thread to give space to
+                    // other threads.
+                    tail_lock.unlock();
+                    std::this_thread::yield();
+                }
+            }
         }
 
         LinkedListNode<T>* push_at(size_t index, T item) {
@@ -181,15 +195,10 @@ namespace multithreading::structures::linked_list {
         }
 
         std::optional<T> pop_back() {
-            // Start with locking the tail as we will need it anyway in the future. Early lock
-            // prevents deadlocks with push_back().
-            std::scoped_lock tail_lock(tail_mutex);
             // Initial state to begin iterating.
             FGLockNode<T>* iterator_node = head;
-            FGLockNode<T>* iterator_next =  nullptr;
-
             iterator_node->operate();
-            iterator_next = iterator_node->next();
+            FGLockNode<T>* iterator_next =  iterator_node->next();
 
             // Check if we have anything to pop from the list.
             if (iterator_next == nullptr) {
@@ -201,21 +210,26 @@ namespace multithreading::structures::linked_list {
             // Find the second-to-last node to update the reference.
             iterator_next->operate();
             while (true) {
-                FGLockNode<T>* next = iterator_next->next();
-                if (next == nullptr) {
+                FGLockNode<T>* next_node = iterator_next->next();
+                if (next_node == nullptr) {
                     break;
                 }
 
-                next->operate();
+                next_node->operate();
                 iterator_node->dispose();
                 iterator_node = iterator_next;
-                iterator_next = next;
+                iterator_next = next_node;
             }
 
-            iterator_node->set_next(nullptr);
-            // Delete the last node (iterator_next) and update the pre-last (iterator_node)
-            // and tail references.
-            tail = iterator_node;
+            // Lock the tail mutex and update its state to newly traversed tail node.
+            {
+                // Update the pre-last (iterator_node) and tail references.
+                std::lock_guard<std::mutex> lock(tail_mutex);
+                iterator_node->set_next(nullptr);
+                tail = iterator_node;
+            }
+
+            // Screen the last node value and delete the last node (iterator_next).
             T result = iterator_next->value();
             iterator_next->dispose();
             iterator_node->dispose();

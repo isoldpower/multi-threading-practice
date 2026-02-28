@@ -27,7 +27,7 @@ protected:
 };
 
 using LinkedListImplementations = ::testing::Types<
-    // multithreading::structures::linked_list::FGLockLinkedList<int>,
+    multithreading::structures::linked_list::FGLockLinkedList<int>,
     multithreading::structures::linked_list::LockFreeLinkedList<int>
 >;
 TYPED_TEST_SUITE(LinkedListTest, LinkedListImplementations);
