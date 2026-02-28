@@ -29,7 +29,7 @@ namespace multithreading::structures::linked_list {
 
         virtual void push_front(T item) = 0;
         virtual void push_back(T item) = 0;
-        virtual bool push_at(T item, size_t index) = 0;
+        virtual bool push_at(size_t index, T item) = 0;
 
         virtual std::optional<T> pop_front() = 0;
         virtual std::optional<T> pop_back() = 0;

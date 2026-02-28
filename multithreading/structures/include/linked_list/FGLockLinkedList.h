@@ -100,7 +100,7 @@ namespace multithreading::structures::linked_list {
             FGLockNode<T>* new_node = new FGLockNode<T>(item);
 
             // Update last node's contents with internal lock.
-            std::lock_guard<std::mutex> lock(tail_mutex);
+            std::scoped_lock<std::mutex> lock(tail_mutex);
             tail->operate();
             tail->set_next(new_node);
             tail->dispose();
@@ -110,7 +110,7 @@ namespace multithreading::structures::linked_list {
             increment_count();
         }
 
-        LinkedListNode<T>* push_at(T item, size_t index) {
+        LinkedListNode<T>* push_at(size_t index, T item) {
             size_t current_index = 0;
             FGLockNode<T>* iterator_node = head;
             FGLockNode<T>* iterator_next = nullptr;
@@ -181,6 +181,9 @@ namespace multithreading::structures::linked_list {
         }
 
         std::optional<T> pop_back() {
+            // Start with locking the tail as we will need it anyway in the future. Early lock
+            // prevents deadlocks with push_back().
+            std::scoped_lock tail_lock(tail_mutex);
             // Initial state to begin iterating.
             FGLockNode<T>* iterator_node = head;
             FGLockNode<T>* iterator_next =  nullptr;
@@ -212,10 +215,7 @@ namespace multithreading::structures::linked_list {
             iterator_node->set_next(nullptr);
             // Delete the last node (iterator_next) and update the pre-last (iterator_node)
             // and tail references.
-            {
-                std::scoped_lock lock(tail_mutex);
-                tail = iterator_node;
-            }
+            tail = iterator_node;
             T result = iterator_next->value();
             iterator_next->dispose();
             iterator_node->dispose();
@@ -363,8 +363,8 @@ namespace multithreading::structures::linked_list {
         void push_back(T item) override {
             impl->push_back(item);
         }
-        bool push_at(T item, size_t index) override {
-            return impl->push_at(item, index);
+        bool push_at(size_t index, T item) override {
+            return impl->push_at(index, item);
         }
 
         std::optional<T> pop_front() override {

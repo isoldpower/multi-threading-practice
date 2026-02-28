@@ -63,7 +63,7 @@ namespace multithreading::structures::linked_list {
             // Unmark the nodes for safety reasons.
             LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
             if (unmarked_next == nullptr) {
-                // next_node was mark(nullptr) = 0x1, just physically unlink by setting to nullptr
+                // next_node was mark(nullptr) = 0x1, we just physically unlink it by setting to nullptr.
                 node->next_node.compare_exchange_weak(
                     next_node,
                     nullptr,
@@ -89,65 +89,137 @@ namespace multithreading::structures::linked_list {
         }
 
         LockFreeNode<T>* traverse_to(const size_t index) {
-            size_t iterator = 0;
-            LockFreeNode<T>* current_node = head;
+            while (true) { // Outer restart loop
+                size_t iterator = 0;
+                LockFreeNode<T>* previous_node = head;
+                LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                    head->next_node.load(std::memory_order_acquire)
+                );
 
-            // Traverse to the specified index.
-            while (iterator < index) {
-                LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
-                if (next_node == nullptr) {
-                    // Reached the end of the list and did not reach the passed index.
-                    // Argument is incorrect, return.
-                    return nullptr;
-                }
+                bool conflict = false;
 
-                if (LockFreeNode<T>::is_marked(next_node)) {
-                    this->try_help_advance(current_node, next_node);
-                    continue;
-                } else {
-                    // The state is consistent. Increase the iterator to proceed to next.
-                    current_node = LockFreeNode<T>::unmark_node(next_node);
+                while (iterator < index) {
+                    if (current_node == nullptr) return nullptr;
+
+                    // Load next and check for logical deletion
+                    LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
+                    LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
+
+                    if (LockFreeNode<T>::is_marked(next_node)) {
+                        // Try to physically unlink the deleted current_node
+                        if (previous_node->next_node.compare_exchange_weak(
+                            current_node, // We expect unmarked current_node
+                            unmarked_next,
+                            std::memory_order_release,
+                            std::memory_order_acquire
+                        )) {
+                            epoch_reclamation.retire_reference(current_node);
+                            current_node = unmarked_next;
+                            // Do not increment iterator; we just removed a "ghost" node
+                            continue;
+                        } else {
+                            // previous_node changed (likely deleted). Restart from head.
+                            conflict = true;
+                            break;
+                        }
+                    }
+
+                    previous_node = current_node;
+                    current_node = unmarked_next;
                     iterator++;
                 }
-            }
 
-            return current_node;
+                if (!conflict) return previous_node;
+            }
         }
 
         LockFreeNode<T>* traverse_to_second_to_last() {
+            while (true) { // Restart loop
+                LockFreeNode<T>* previous_node = head;
+                LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                    head->next_node.load(std::memory_order_acquire)
+                );
+
+                bool conflict_detected = false;
+
+                while (current_node != nullptr) {
+                    LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
+                    LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
+
+                    if (LockFreeNode<T>::is_marked(next_node)) {
+                        // Try to physically unlink 'current_node'
+                        if (previous_node->next_node.compare_exchange_weak(
+                            current_node,
+                            unmarked_next,
+                            std::memory_order_release,
+                            std::memory_order_acquire
+                        )) {
+                            // Success: retire and update current_node to keep moving forward
+                            epoch_reclamation.retire_reference(current_node);
+                            current_node = unmarked_next;
+                            continue;
+                        } else {
+                            // Failure: 'previous_node' was modified or deleted.
+                            // Break to the outer loop to restart from head.
+                            conflict_detected = true;
+                            break;
+                        }
+                    }
+
+                    if (unmarked_next == nullptr) {
+                        return previous_node; // Success: reached second-to-last
+                    }
+
+                    previous_node = current_node;
+                    current_node = unmarked_next;
+                }
+
+                if (!conflict_detected) {
+                    return previous_node; // Reached end of list (empty list case)
+                }
+            }
+        }
+
+        LockFreeNode<T>* find_actual_tail() {
             LockFreeNode<T>* previous_node = head;
-            LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(head->next_node.load(std::memory_order_acquire));
+            LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                head->next_node.load(std::memory_order_acquire));
 
             while (current_node != nullptr) {
                 LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
-                LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
 
                 if (LockFreeNode<T>::is_marked(next_node)) {
-                    // current_node is being deleted — skip it from previous_node
+                    // Try to help physically delete the node if it is logically deleted.
+                    LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
+
                     if (previous_node->next_node.compare_exchange_weak(
                         current_node,
                         unmarked_next,
                         std::memory_order_release,
                         std::memory_order_acquire
                     )) {
+                        // Retire the node and move forward with next node that was unmarked for safety.
                         epoch_reclamation.retire_reference(current_node);
+                        current_node = unmarked_next;
+                    } else {
+                        // Failed to help advance the node meaning it somehow changed without
+                        // our control. For extra safety restart from head.
+                        previous_node = head;
+                        current_node = LockFreeNode<T>::unmark_node(
+                            head->next_node.load(std::memory_order_acquire));
                     }
-                    // Reload current node from previous node state
-                    current_node = LockFreeNode<T>::unmark_node(previous_node->next_node.load(std::memory_order_acquire));
-                    continue;
-                }
+                } else {
+                    // The node is not deleted. Check if it is the last node and move forward if
+                    // it is not last.
+                    if (next_node == nullptr) {
+                        return current_node;
+                    }
 
-                if (unmarked_next == nullptr) {
-                    // current_node is the last node, previous_node is second-to-last
-                    return previous_node;
+                    previous_node = current_node;
+                    current_node = next_node;
                 }
-
-                previous_node = current_node;
-                current_node = unmarked_next;
             }
 
-            // Return the traversed node. If the list is empty it will return the head
-            // which is a dummy node.
             return previous_node;
         }
     public:
@@ -168,7 +240,13 @@ namespace multithreading::structures::linked_list {
 
             while (true) {
                 // Get the state of the current head and unmark it to point to a valid address.
+                // If the first node is marked then help it advance and retry.
                 LockFreeNode<T>* current_head = head->next_node.load(std::memory_order_acquire);
+                if (LockFreeNode<T>::is_marked(current_head)) {
+                    this->try_help_advance(head, current_head);
+                    continue;
+                }
+
                 LockFreeNode<T>* unmarked = LockFreeNode<T>::unmark_node(current_head);
                 new_node->next_node.store(unmarked, std::memory_order_relaxed);
 
@@ -194,10 +272,32 @@ namespace multithreading::structures::linked_list {
                 LockFreeNode<T>* after_tail = current_tail->next_node.load(std::memory_order_acquire);
 
                 if (current_tail != tail.load(std::memory_order_acquire)) {
+                    // The tail changed between the checks, state is inconsistent.
+                    // Retry in next operation.
                     continue;
                 }
+
                 if (LockFreeNode<T>::is_marked(after_tail)) {
-                    this->try_help_advance(current_tail, after_tail);
+                    LockFreeNode<T>* unmarked_after = LockFreeNode<T>::unmark_node(after_tail);
+                    if (unmarked_after != nullptr) {
+                        // Tail lags behind a non-deleted node so we need to help it advance
+                        // to fit the current state of the list.
+                        tail.compare_exchange_weak(
+                            current_tail,
+                            unmarked_after,
+                            std::memory_order_release,
+                            std::memory_order_relaxed);
+                    } else {
+                        // Tail is lost somewhere hanging 'after' the list due to stale states and possible
+                        // concurrent pop_back() calls. Find the actual tail position from scratch.
+                        LockFreeNode<T>* actual_tail = this->find_actual_tail();
+                        tail.compare_exchange_weak(
+                            current_tail,
+                            actual_tail,
+                            std::memory_order_release,
+                            std::memory_order_relaxed);
+                    }
+
                     continue;
                 }
 
@@ -235,7 +335,7 @@ namespace multithreading::structures::linked_list {
             }
         }
 
-        ssize_t push_at(T item, const size_t index) {
+        ssize_t push_at(const size_t index, T item) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
             LockFreeNode<T>* new_node = new LockFreeNode<T>(item);
 
@@ -247,9 +347,10 @@ namespace multithreading::structures::linked_list {
                     return -1;
                 }
 
+                // Traverse successful, try insert the node between current and current->next_node.
                 LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
-                // Traverse successful, insert the node between current and current->next_node.
                 if (LockFreeNode<T>::is_marked(next_node)) {
+                    // If the node is marked then we need to help it advance and retry.
                     this->try_help_advance(current_node, next_node);
                     continue;
                 } else {
@@ -351,7 +452,6 @@ namespace multithreading::structures::linked_list {
 
                     continue;
                 } else if (LockFreeNode<T>::is_marked(last_node)) {
-                    // this->try_help_advance(before_last, last_node);
                     continue;
                 }
 
@@ -380,7 +480,7 @@ namespace multithreading::structures::linked_list {
                 // to physically delete the node from the list AND from memory.
                 if (before_last->next_node.compare_exchange_weak(
                     unmarked_last,
-                    nullptr,
+                    after_last,
                     std::memory_order_release,
                     std::memory_order_relaxed
                 )) {
@@ -391,9 +491,10 @@ namespace multithreading::structures::linked_list {
                 // succeeded our tail and before_last are already in a safe state. The potential
                 // fails only mean that other threads may have helped advancing the state and
                 // retiring the node.
+                LockFreeNode<T>* new_tail = (after_last != nullptr) ? after_last : before_last;
                 tail.compare_exchange_weak(
                     unmarked_last,
-                    before_last,
+                    new_tail,
                     std::memory_order_release,
                     std::memory_order_relaxed);
 
@@ -406,62 +507,63 @@ namespace multithreading::structures::linked_list {
 
             while (true) {
                 LockFreeNode<T>* before_node = this->traverse_to(index);
-                if (before_node == nullptr) {
-                    return std::nullopt;
-                }
+                if (before_node == nullptr) return std::nullopt;
+
                 LockFreeNode<T>* referenced_node = before_node->next_node.load(std::memory_order_acquire);
-                if (referenced_node == nullptr) {
-                    return std::nullopt;
-                }
+                if (referenced_node == nullptr) return std::nullopt;
 
+                // If referenced_node has the mark bit, it means BEFORE_NODE is logically deleted.
+                // We cannot use a deleted before_node. Restart traversal.
                 if (LockFreeNode<T>::is_marked(referenced_node)) {
-                    // Help advance. Skip to next iteration.
-                    this->try_help_advance(before_node, referenced_node);
                     continue;
-                } else {
-                    LockFreeNode<T>* unmarked_referenced = LockFreeNode<T>::unmark_node(referenced_node);
-                    T node_value = unmarked_referenced->value();
-                    LockFreeNode<T>* next_node = unmarked_referenced->next_node.load(std::memory_order_acquire);
-                    LockFreeNode<T>* next_marked = LockFreeNode<T>::mark_node(next_node);
-                    if (LockFreeNode<T>::is_marked(next_node)) {
-                        // If the next node is logically deleted - help advance it and retry.
-                        this->try_help_advance(before_node, unmarked_referenced);
-                        continue;
-                    }
-
-                    if (unmarked_referenced->next_node.compare_exchange_weak(
-                        next_node,
-                        next_marked,
-                        std::memory_order_release,
-                        std::memory_order_acquire
-                    )) {
-                        // Successful logical delete. Move to physical delete. The next_node
-                        // is unmarked at this point due to the check above.
-                        if (before_node->next_node.compare_exchange_weak(
-                            unmarked_referenced,
-                            next_node,
-                            std::memory_order_release,
-                            std::memory_order_relaxed
-                        )) {
-                            epoch_reclamation.retire_reference(unmarked_referenced);
-                        }
-
-                        // If we popped the last node - try advance the tail to reference the
-                        // previous node.
-                        if (next_node == nullptr) {
-                            tail.compare_exchange_weak(
-                                unmarked_referenced,
-                                before_node,
-                                std::memory_order_release,
-                                std::memory_order_relaxed);
-                        }
-
-                        return std::optional<T>(node_value);
-                    } else {
-                        // CAS update for the logical delete failed. Move to the next iteration.
-                        continue;
-                    }
                 }
+
+                LockFreeNode<T>* unmarked_referenced = LockFreeNode<T>::unmark_node(referenced_node);
+                LockFreeNode<T>* next_node = unmarked_referenced->next_node.load(std::memory_order_acquire);
+
+                // If next_node is marked, our target node is logically deleted.
+                if (LockFreeNode<T>::is_marked(next_node)) {
+                    // FIX: traverse_to won't clean this up because it stops traversing at this index.
+                    // We MUST physically unlink it right here to prevent an infinite loop.
+                    LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
+                    if (before_node->next_node.compare_exchange_weak(
+                        unmarked_referenced,
+                        unmarked_next,
+                        std::memory_order_release,
+                        std::memory_order_relaxed
+                    )) {
+                        epoch_reclamation.retire_reference(unmarked_referenced);
+                    }
+                    continue; // Node removed, restart to find the actual node at this index.
+                }
+
+                T node_value = unmarked_referenced->value();
+
+                // 1. Logical delete
+                if (unmarked_referenced->next_node.compare_exchange_weak(
+                    next_node,
+                    LockFreeNode<T>::mark_node(next_node),
+                    std::memory_order_release,
+                    std::memory_order_acquire
+                )) {
+                    // 2. Physical delete
+                    if (before_node->next_node.compare_exchange_weak(
+                        unmarked_referenced,
+                        next_node,
+                        std::memory_order_release,
+                        std::memory_order_relaxed
+                    )) {
+                        epoch_reclamation.retire_reference(unmarked_referenced);
+                    }
+
+                    // 3. Tail sync
+                    if (next_node == nullptr) {
+                        tail.compare_exchange_weak(unmarked_referenced, before_node);
+                    }
+
+                    return std::optional<T>(node_value);
+                }
+                // CAS failed, retry
             }
         }
 
@@ -471,23 +573,24 @@ namespace multithreading::structures::linked_list {
 
         size_t size() {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
-
             size_t iterator = 0;
-            LockFreeNode<T>* current_node = head->next_node.load(std::memory_order_acquire);
 
-            // Traverse to the end of the list and count the size as we go.
-            // Return as soon as we encounter the nullptr (meaning the end of the list)
+            // Unmark first real node to start the traverse process safely.
+            LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                head->next_node.load(std::memory_order_acquire));
+
             while (current_node != nullptr) {
-                // No advance-helping. Size() function should be const, without implicitly
-                // advancing or changing the nodes.
-                if (LockFreeNode<T>::is_marked(current_node)) {
-                    LockFreeNode<T>* current_unmarked = LockFreeNode<T>::unmark_node(current_node);
-                    current_node = current_unmarked->next_node.load(std::memory_order_acquire);
-                    continue;
-                }
+                LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
 
-                iterator++;
-                current_node = current_node->next_node.load(std::memory_order_acquire);
+                // If the next node is logically deleted then we are not increasing the iterator
+                // because the node is not logically present.
+                if (LockFreeNode<T>::is_marked(next_node)) {
+                    current_node = LockFreeNode<T>::unmark_node(next_node);
+                    continue;
+                } else {
+                    iterator++;
+                    current_node = next_node;
+                }
             }
 
             return iterator;
@@ -496,24 +599,25 @@ namespace multithreading::structures::linked_list {
         bool contains(const T& value) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
 
-            LockFreeNode<T>* current_node = head->next_node.load(std::memory_order_acquire);
+            // Unmark first real node to start the traverse process safely.
+            LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                head->next_node.load(std::memory_order_acquire));
 
-            // Traverse to the end of the list and count the size as we go.
-            // Return as soon as we encounter the nullptr (meaning the end of the list)
             while (current_node != nullptr) {
-                // No advance-helping. Contains() function should be const, without implicitly
-                // advancing or changing the nodes.
-                if (LockFreeNode<T>::is_marked(current_node)) {
-                    LockFreeNode<T>* current_unmarked = LockFreeNode<T>::unmark_node(current_node);
-                    current_node = current_unmarked->next_node.load(std::memory_order_acquire);
-                    continue;
-                }
+                LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
 
-                T node_value = current_node->value();
-                if (node_value == value) {
-                    return true;
+                if (LockFreeNode<T>::is_marked(next_node)) {
+                    // Skip the node if it is logically deleted.
+                    current_node = LockFreeNode<T>::unmark_node(next_node);
                 } else {
-                    current_node = current_node->next_node.load(std::memory_order_acquire);
+                    // The node is present and not logically deleted. Check its value for being
+                    // equal to the searched one.
+                    if (current_node->value() == value) {
+                        return true;
+                    }
+
+                    // Move forward if the value is not equal.
+                    current_node = next_node;
                 }
             }
 
@@ -523,24 +627,25 @@ namespace multithreading::structures::linked_list {
         LinkedListNode<T>* find(const T& value) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
 
-            LockFreeNode<T>* current_node = head->next_node.load(std::memory_order_acquire);
+            // Unmark first real node to start the traverse process safely.
+            LockFreeNode<T>* current_node = LockFreeNode<T>::unmark_node(
+                head->next_node.load(std::memory_order_acquire));
 
-            // Traverse to the end of the list and count the size as we go.
-            // Return as soon as we encounter the nullptr (meaning the end of the list)
             while (current_node != nullptr) {
-                // No advance-helping. Find() function should be const, without implicitly
-                // advancing or changing the nodes.
-                if (LockFreeNode<T>::is_marked(current_node)) {
-                    LockFreeNode<T>* current_unmarked = LockFreeNode<T>::unmark_node(current_node);
-                    current_node = current_unmarked->next_node.load(std::memory_order_acquire);
-                    continue;
-                }
+                LockFreeNode<T>* next_node = current_node->next_node.load(std::memory_order_acquire);
 
-                T node_value = current_node->value();
-                if (node_value == value) {
-                    return current_node;
+                if (LockFreeNode<T>::is_marked(next_node)) {
+                    // Skip the node if it is logically deleted.
+                    current_node = LockFreeNode<T>::unmark_node(next_node);
                 } else {
-                    current_node = current_node->next_node.load(std::memory_order_acquire);
+                    // The node is present and not logically deleted. Check its value for being
+                    // equal to the searched one.
+                    if (current_node->value() == value) {
+                        return current_node;
+                    }
+
+                    // Move forward if the value is not equal.
+                    current_node = next_node;
                 }
             }
 
@@ -571,8 +676,8 @@ namespace multithreading::structures::linked_list {
         void push_back(T item) override {
             impl->push_back(item);
         }
-        bool push_at(T item, const size_t index) override {
-            const ssize_t operation_result = impl->push_at(item, index);
+        bool push_at(const size_t index, T item) override {
+            const ssize_t operation_result = impl->push_at(index, item);
 
             return operation_result == 0;
         }
