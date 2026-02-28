@@ -35,7 +35,7 @@ namespace multithreading::structures::unbounded_queue {
             return nextNode;
         }
 
-        void setNext(FGNode* next) {
+        void set_next(FGNode* next) {
             this->nextNode = next;
         }
     };
@@ -52,7 +52,7 @@ namespace multithreading::structures::unbounded_queue {
         FGNode<T>* tail;
 
         void unsafe_enqueue(FGNode<T>* node) {
-            tail->setNext(node);
+            tail->set_next(node);
             tail = node;
 
             enqueue_condition.notify_one();
