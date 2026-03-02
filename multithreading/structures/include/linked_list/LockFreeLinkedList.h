@@ -21,8 +21,8 @@ namespace multithreading::structures::linked_list {
             , next_node(nullptr)
         {}
 
-        explicit LockFreeNode(T value)
-            : LinkedListNode<T>(value)
+        explicit LockFreeNode(T&& value)
+            : LinkedListNode<T>(std::move(value))
             , next_node(nullptr)
         {}
 
@@ -42,8 +42,12 @@ namespace multithreading::structures::linked_list {
             );
         }
 
-        [[nodiscard]] T value() {
+        [[nodiscard]] const T& peek() const {
             return this->node_value;
+        }
+
+        [[nodiscard]] T&& value() {
+            return std::move(this->node_value);
         }
     };
 
@@ -236,7 +240,7 @@ namespace multithreading::structures::linked_list {
 
         void push_front(T item) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
-            LockFreeNode<T>* new_node = new LockFreeNode<T>(item);
+            LockFreeNode<T>* new_node = new LockFreeNode<T>(std::move(item));
 
             while (true) {
                 // Get the state of the current head and unmark it to point to a valid address.
@@ -265,7 +269,7 @@ namespace multithreading::structures::linked_list {
 
         void push_back(T item) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
-            LockFreeNode<T>* new_node = new LockFreeNode<T>(item);
+            LockFreeNode<T>* new_node = new LockFreeNode<T>(std::move(item));
 
             while (true) {
                 LockFreeNode<T>* current_tail = tail.load(std::memory_order_acquire);
@@ -337,7 +341,7 @@ namespace multithreading::structures::linked_list {
 
         ssize_t push_at(const size_t index, T item) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
-            LockFreeNode<T>* new_node = new LockFreeNode<T>(item);
+            LockFreeNode<T>* new_node = new LockFreeNode<T>(std::move(item));
 
             while (true) {
                 LockFreeNode<T>* current_node = traverse_to(index);
@@ -466,7 +470,6 @@ namespace multithreading::structures::linked_list {
                 }
 
                 LockFreeNode<T>* marked_after = LockFreeNode<T>::mark_node(after_last);
-                T node_value = unmarked_last->value();
                 if (!unmarked_last->next_node.compare_exchange_weak(
                     after_last,
                     marked_after,
@@ -476,6 +479,7 @@ namespace multithreading::structures::linked_list {
                     continue;
                 }
 
+                T node_value = unmarked_last->value();
                 // At this point the logical deletion with marking was successful. Now we need
                 // to physically delete the node from the list AND from memory.
                 if (before_last->next_node.compare_exchange_weak(
@@ -498,7 +502,7 @@ namespace multithreading::structures::linked_list {
                     std::memory_order_release,
                     std::memory_order_relaxed);
 
-                return std::optional<T>(node_value);
+                return std::optional<T>(std::move(node_value));
             }
         }
 
@@ -506,25 +510,34 @@ namespace multithreading::structures::linked_list {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
 
             while (true) {
+                // Try to traverse to the node that was requested to pop. Return if we reached
+                // the end of the list without encountering the requested node.
                 LockFreeNode<T>* before_node = this->traverse_to(index);
-                if (before_node == nullptr) return std::nullopt;
+                if (before_node == nullptr) {
+                    return std::nullopt;
+                }
 
+                // Traverse returns the node before the one requested so we access the referenced
+                // node here by accessing the next after returned one.
                 LockFreeNode<T>* referenced_node = before_node->next_node.load(std::memory_order_acquire);
-                if (referenced_node == nullptr) return std::nullopt;
-
-                // If referenced_node has the mark bit, it means BEFORE_NODE is logically deleted.
-                // We cannot use a deleted before_node. Restart traversal.
-                if (LockFreeNode<T>::is_marked(referenced_node)) {
+                if (referenced_node == nullptr) {
+                    return std::nullopt;
+                } else if (LockFreeNode<T>::is_marked(referenced_node)) {
+                    // If referenced_node has the mark bit, it means before_node is logically deleted.
+                    // We cannot use a deleted before_node so we restart the traversal.
+                    // NOTE: Probably this->traverse_to() already checks for node being deleted,
+                    // but we do it for extra safety here.
                     continue;
                 }
 
                 LockFreeNode<T>* unmarked_referenced = LockFreeNode<T>::unmark_node(referenced_node);
                 LockFreeNode<T>* next_node = unmarked_referenced->next_node.load(std::memory_order_acquire);
 
-                // If next_node is marked, our target node is logically deleted.
+                // If next_node is marked, our target node is logically deleted so we help it
+                // advance and retry in the next iteration.
                 if (LockFreeNode<T>::is_marked(next_node)) {
-                    // FIX: traverse_to won't clean this up because it stops traversing at this index.
-                    // We MUST physically unlink it right here to prevent an infinite loop.
+                    // We must physically unlink it right here to prevent an infinite loop as
+                    // traverse_to() doesn't reach this node and never helps it advance.
                     LockFreeNode<T>* unmarked_next = LockFreeNode<T>::unmark_node(next_node);
                     if (before_node->next_node.compare_exchange_weak(
                         unmarked_referenced,
@@ -534,19 +547,22 @@ namespace multithreading::structures::linked_list {
                     )) {
                         epoch_reclamation.retire_reference(unmarked_referenced);
                     }
-                    continue; // Node removed, restart to find the actual node at this index.
+
+                    // Don't care about the result of helping to advance just skip to next iteration.
+                    continue;
                 }
 
-                T node_value = unmarked_referenced->value();
-
-                // 1. Logical delete
+                // At this point we are sure screened states of the nodes are fine so we
+                // can move to the CAS operations with trying to logically delete first.
                 if (unmarked_referenced->next_node.compare_exchange_weak(
                     next_node,
                     LockFreeNode<T>::mark_node(next_node),
                     std::memory_order_release,
                     std::memory_order_acquire
                 )) {
-                    // 2. Physical delete
+                    // Logical delete succeeded, and we can move the value from the node and
+                    // proceed to physical delete.
+                    T node_value = unmarked_referenced->value();
                     if (before_node->next_node.compare_exchange_weak(
                         unmarked_referenced,
                         next_node,
@@ -556,14 +572,21 @@ namespace multithreading::structures::linked_list {
                         epoch_reclamation.retire_reference(unmarked_referenced);
                     }
 
-                    // 3. Tail sync
+                    // Try to sync the tail if we end up at the end of the list. Ignore
+                    // potential fail as it will be handled in '_back()' operations.
                     if (next_node == nullptr) {
-                        tail.compare_exchange_weak(unmarked_referenced, before_node);
+                        tail.compare_exchange_weak(
+                            unmarked_referenced,
+                            before_node,
+                            std::memory_order_release,
+                            std::memory_order_relaxed);
                     }
 
-                    return std::optional<T>(node_value);
+                    return std::optional<T>(std::move(node_value));
                 }
-                // CAS failed, retry
+
+                // Logical deletion CAS failed so we retry in the next iteration.
+                continue;
             }
         }
 
@@ -596,7 +619,7 @@ namespace multithreading::structures::linked_list {
             return iterator;
         }
 
-        bool contains(const T& value) {
+        bool contains(const T& value, std::function<bool(const T&, const T&)> equaliser) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
 
             // Unmark first real node to start the traverse process safely.
@@ -612,7 +635,7 @@ namespace multithreading::structures::linked_list {
                 } else {
                     // The node is present and not logically deleted. Check its value for being
                     // equal to the searched one.
-                    if (current_node->value() == value) {
+                    if (equaliser(current_node->peek(), value)) {
                         return true;
                     }
 
@@ -624,7 +647,7 @@ namespace multithreading::structures::linked_list {
             return false;
         }
 
-        LinkedListNode<T>* find(const T& value) {
+        LinkedListNode<T>* find(const T& value, std::function<bool(const T&, const T&)> equaliser) {
             utilities::performance::EpochGuard<LockFreeNode<T>> epoch_guard(&epoch_reclamation);
 
             // Unmark first real node to start the traverse process safely.
@@ -640,7 +663,7 @@ namespace multithreading::structures::linked_list {
                 } else {
                     // The node is present and not logically deleted. Check its value for being
                     // equal to the searched one.
-                    if (current_node->value() == value) {
+                    if (equaliser(current_node->peek(), value)) {
                         return current_node;
                     }
 
@@ -670,14 +693,14 @@ namespace multithreading::structures::linked_list {
         LockFreeLinkedList(LockFreeLinkedList<T>&& other) = delete;
         LockFreeLinkedList<T>& operator=(LockFreeLinkedList<T>&& other) = delete;
 
-        void push_front(T item) override {
-            impl->push_front(item);
+        void push_front(T&& item) override {
+            impl->push_front(std::move(item));
         }
-        void push_back(T item) override {
-            impl->push_back(item);
+        void push_back(T&& item) override {
+            impl->push_back(std::move(item));
         }
-        bool push_at(const size_t index, T item) override {
-            const ssize_t operation_result = impl->push_at(index, item);
+        bool push_at(const size_t index, T&& item) override {
+            const ssize_t operation_result = impl->push_at(index, std::move(item));
 
             return operation_result == 0;
         }
@@ -698,8 +721,18 @@ namespace multithreading::structures::linked_list {
         size_t size() override {
             return impl->size();
         }
-        bool contains(T value) override {
-            return impl->contains(value);
+        bool contains(const T& value) override {
+            const auto equaliser = [](const T& first, const T& second) {
+                return first == second;
+            };
+
+            return impl->contains(value, equaliser);
+        }
+        bool contains(
+            const T& value,
+            std::function<bool(const T&, const T&)> equaliser
+        ) override {
+            return impl->contains(value, equaliser);
         }
     };
 } // namespace multithreading::structures::linked_list

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <mutex>
+#include <thread>
 
 #include "./LinkedList.h"
 
@@ -28,8 +29,12 @@ namespace multithreading::structures::linked_list {
             , next_node(nullptr)
         {}
 
-        [[nodiscard]] T value() {
+        [[nodiscard]] const T& peek() const {
             return this->node_value;
+        }
+
+        [[nodiscard]] T&& value() {
+            return std::move(this->node_value);
         }
 
         [[nodiscard]] FGLockNode<T>* next() {
@@ -83,8 +88,8 @@ namespace multithreading::structures::linked_list {
             delete head;
         }
 
-        void push_front(T item) {
-            FGLockNode<T>* new_node = new FGLockNode<T>(item);
+        void push_front(T&& item) {
+            FGLockNode<T>* new_node = new FGLockNode<T>(std::move(item));
 
             head->operate();
             FGLockNode<T>* current_head = head->next();
@@ -100,8 +105,8 @@ namespace multithreading::structures::linked_list {
             increment_count();
         }
 
-        void push_back(T item) {
-            FGLockNode<T>* new_node = new FGLockNode<T>(item);
+        void push_back(T&& item) {
+            FGLockNode<T>* new_node = new FGLockNode<T>(std::move(item));
 
             while (true) {
                 std::unique_lock<std::mutex> tail_lock(tail_mutex);
@@ -124,7 +129,7 @@ namespace multithreading::structures::linked_list {
             }
         }
 
-        LinkedListNode<T>* push_at(size_t index, T item) {
+        LinkedListNode<T>* push_at(size_t index, T&& item) {
             size_t current_index = 0;
             FGLockNode<T>* iterator_node = head;
             FGLockNode<T>* iterator_next = nullptr;
@@ -150,7 +155,7 @@ namespace multithreading::structures::linked_list {
             }
 
             // Create a new node and update all the references with proper mutex locking.
-            FGLockNode<T>* new_node = new FGLockNode<T>(item);
+            FGLockNode<T>* new_node = new FGLockNode<T>(std::move(item));
             new_node->set_next(iterator_node->next());
             iterator_node->set_next(new_node);
             // If the element we push is the last node, then update the tail reference.
@@ -191,7 +196,7 @@ namespace multithreading::structures::linked_list {
 
             // Update the counter after successful deletion. Return the snapshot of node's value.
             decrement_count();
-            return std::optional<T>(result);
+            return std::optional<T>(std::move(result));
         }
 
         std::optional<T> pop_back() {
@@ -236,7 +241,7 @@ namespace multithreading::structures::linked_list {
             delete iterator_next;
 
             decrement_count();
-            return std::optional<T>(result);
+            return std::optional<T>(std::move(result));
         }
 
         std::optional<T> pop_at(size_t index) {
@@ -285,7 +290,7 @@ namespace multithreading::structures::linked_list {
             delete iterator_next;
 
             decrement_count();
-            return std::optional<T>(result);
+            return std::optional<T>(std::move(result));
         }
 
         size_t size() {
@@ -298,7 +303,10 @@ namespace multithreading::structures::linked_list {
             return count == 0;
         }
 
-        bool contains(T item) {
+        bool contains(
+            const T& item,
+            std::function<bool(const T&, const T&)> equaliser
+        ) {
             // Initial state to begin iterating.
             FGLockNode<T>* iterator_node = head;
             FGLockNode<T>* iterator_next = nullptr;
@@ -310,7 +318,7 @@ namespace multithreading::structures::linked_list {
             while (iterator_next != nullptr) {
                 iterator_next->operate();
 
-                if (iterator_next->value() == item) {
+                if (equaliser(iterator_next->peek(), item)) {
                     // If found, free the nodes and return true.
                     iterator_next->dispose();
                     iterator_node->dispose();
@@ -327,7 +335,10 @@ namespace multithreading::structures::linked_list {
             return false;
         }
 
-        LinkedListNode<T>* find(const T& item) {
+        LinkedListNode<T>* find(
+            const T& item,
+            std::function<bool(const T&, const T&)> equaliser
+        ) {
             // Initial state to begin iterating.
             FGLockNode<T>* iterator_node = head;
             FGLockNode<T>* iterator_next = nullptr;
@@ -339,7 +350,7 @@ namespace multithreading::structures::linked_list {
             while (iterator_next != nullptr) {
                 iterator_next->operate();
 
-                if (iterator_next->value() == item) {
+                if (equaliser(iterator_next->peek(), item)) {
                     // If found, free the nodes and return the found node.
                     iterator_next->dispose();
                     iterator_node->dispose();
@@ -362,7 +373,9 @@ namespace multithreading::structures::linked_list {
     private:
         std::unique_ptr<FGLockLinkedListImpl<T>> impl;
     public:
-        FGLockLinkedList() : impl(std::make_unique<FGLockLinkedListImpl<T>>()) {}
+        FGLockLinkedList()
+            : impl(std::make_unique<FGLockLinkedListImpl<T>>())
+        {}
         FGLockLinkedList(const FGLockLinkedList<T> &other) = delete;
         FGLockLinkedList(FGLockLinkedList<T> &&other) = delete;
 
@@ -371,14 +384,14 @@ namespace multithreading::structures::linked_list {
 
         ~FGLockLinkedList() override = default;
 
-        void push_front(T item) override {
-            impl->push_front(item);
+        void push_front(T&& item) override {
+            impl->push_front(std::move(item));
         }
-        void push_back(T item) override {
-            impl->push_back(item);
+        void push_back(T&& item) override {
+            impl->push_back(std::move(item));
         }
-        bool push_at(size_t index, T item) override {
-            return impl->push_at(index, item);
+        bool push_at(size_t index, T&& item) override {
+            return impl->push_at(index, std::move(item));
         }
 
         std::optional<T> pop_front() override {
@@ -399,8 +412,15 @@ namespace multithreading::structures::linked_list {
             return impl->size();
         }
 
-        bool contains(T value) override {
-            return impl->contains(value);
+        bool contains(const T& value) override {
+            const auto equaliser = [](const T& first, const T& second) {
+                return first == second;
+            };
+
+            return impl->contains(value, equaliser);
+        }
+        bool contains(const T& value, std::function<bool(const T&, const T&)> equaliser) override {
+            return impl->contains(value, equaliser);
         }
     };
 } // namespace multithreading::structures::linked_list

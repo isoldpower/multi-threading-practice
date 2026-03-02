@@ -12,10 +12,51 @@
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 constexpr size_t TEST_THREADS_COUNT = 8;
 
+template <typename Queue>
+struct QueueValueType;
+
+template <template<typename> class Queue, typename T>
+struct QueueValueType<Queue<T>> {
+    using type = T;
+};
+
 template <typename T>
 class LinkedListTest : public ::testing::Test {
 protected:
+    using ValueType = QueueValueType<T>::type;
     std::unique_ptr<T> linked_list;
+
+    ValueType make_value(int val) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return std::make_unique<int>(val);
+        } else {
+            return static_cast<ValueType>(val);
+        }
+    }
+
+    bool are_equal_raw(const ValueType& lhs, const ValueType& rhs) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return *lhs == *rhs;
+        } else {
+            return lhs == rhs;
+        }
+    }
+    bool are_equal(const ValueType& lhs, const std::optional<ValueType>& value) {
+        if (!value.has_value()) {
+            return false;
+        }
+
+        return this->are_equal_raw(lhs, value.value());
+    }
+
+
+    int to_raw(const ValueType& value) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return *value;
+        } else {
+            return value;
+        }
+    }
 
     void SetUp() override {
         linked_list = std::make_unique<T>();
@@ -28,7 +69,9 @@ protected:
 
 using LinkedListImplementations = ::testing::Types<
     multithreading::structures::linked_list::FGLockLinkedList<int>,
-    multithreading::structures::linked_list::LockFreeLinkedList<int>
+    multithreading::structures::linked_list::FGLockLinkedList<std::unique_ptr<int>>,
+    multithreading::structures::linked_list::LockFreeLinkedList<int>,
+    multithreading::structures::linked_list::LockFreeLinkedList<std::unique_ptr<int>>
 >;
 TYPED_TEST_SUITE(LinkedListTest, LinkedListImplementations);
 
@@ -46,12 +89,16 @@ TYPED_TEST(LinkedListTest, EmptyPopNullopt) {
 }
 
 TYPED_TEST(LinkedListTest, SizeReflectsPushedElement) {
-    this->linked_list->push_front(1);
+    auto value = this->make_value(1);
+    this->linked_list->push_front(std::move(value));
+
     EXPECT_EQ(this->linked_list->size(), 1);
 }
 
 TYPED_TEST(LinkedListTest, PopDeletesElement) {
-    this->linked_list->push_front(1);
+    auto value = this->make_value(1);
+    this->linked_list->push_front(std::move(value));
+
     EXPECT_EQ(this->linked_list->size(), 1);
 
     this->linked_list->pop_front();
@@ -59,17 +106,26 @@ TYPED_TEST(LinkedListTest, PopDeletesElement) {
 }
 
 TYPED_TEST(LinkedListTest, PopAtCorrectIndex) {
-    this->linked_list->push_front(1);
-    this->linked_list->push_front(2);
-    this->linked_list->push_front(3);
+    using ValueType = QueueValueType<TypeParam>::type;
 
-    const std::optional<int> pop_value = this->linked_list->pop_at(1);
+    auto value = this->make_value(1);
+    this->linked_list->push_front(std::move(value));
+    value = this->make_value(2);
+    this->linked_list->push_front(std::move(value));
+    value = this->make_value(3);
+    this->linked_list->push_front(std::move(value));
+
+    const std::optional<ValueType> pop_value = this->linked_list->pop_at(1);
     EXPECT_TRUE(pop_value.has_value());
-    EXPECT_EQ(pop_value.value(), 2);
+
+    value = this->make_value(2);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
 }
 
 TYPED_TEST(LinkedListTest, PopEmptyNullopt) {
-    std::optional<int> pop_value = this->linked_list->pop_front();
+    using ValueType = QueueValueType<TypeParam>::type;
+
+    std::optional<ValueType> pop_value = this->linked_list->pop_front();
     EXPECT_FALSE(pop_value.has_value());
     pop_value = this->linked_list->pop_back();
     EXPECT_FALSE(pop_value.has_value());
@@ -78,56 +134,97 @@ TYPED_TEST(LinkedListTest, PopEmptyNullopt) {
 }
 
 TYPED_TEST(LinkedListTest, PushPopElement) {
-    this->linked_list->push_front(1);
+    auto value = this->make_value(1);
+
+    this->linked_list->push_front(std::move(value));
     EXPECT_EQ(this->linked_list->size(), 1);
 
     const auto pop_value = this->linked_list->pop_front();
     EXPECT_TRUE(pop_value.has_value());
-    EXPECT_EQ(pop_value.value(), 1);
+
+    value = this->make_value(1);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
 }
 
 TYPED_TEST(LinkedListTest, FrontBackCorrectPushOrder) {
-    this->linked_list->push_front(1);
-    this->linked_list->push_front(2);
-    this->linked_list->push_front(3);
+    using ValueType = QueueValueType<TypeParam>::type;
 
-    std::optional<int> pop_value;
+    auto value = this->make_value(1);
+    this->linked_list->push_front(std::move(value));
+    value = this->make_value(2);
+    this->linked_list->push_front(std::move(value));
+    value = this->make_value(3);
+    this->linked_list->push_front(std::move(value));
+
+    std::optional<ValueType> pop_value;
     EXPECT_EQ(this->linked_list->size(), 3);
 
     pop_value = this->linked_list->pop_front();
     EXPECT_TRUE(pop_value.has_value());
-    EXPECT_EQ(pop_value.value(), 3);
+    value = this->make_value(3);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
+
     pop_value = this->linked_list->pop_back();
     EXPECT_TRUE(pop_value.has_value());
-    EXPECT_EQ(pop_value.value(), 1);
+    value = this->make_value(1);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
+
     pop_value = this->linked_list->pop_front();
     EXPECT_TRUE(pop_value.has_value());
-    EXPECT_EQ(pop_value.value(), 2);
+    value = this->make_value(2);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
 }
 
 TYPED_TEST(LinkedListTest, ContainsFalseOnEmpty) {
-    EXPECT_FALSE(this->linked_list->contains(0));
+    auto value = this->make_value(0);
+    EXPECT_FALSE(this->linked_list->contains(std::move(value)));
 }
 
 TYPED_TEST(LinkedListTest, ContainsTrueAfterPush) {
-    this->linked_list->push_front(1);
+    using ValueType = QueueValueType<TypeParam>::type;
 
-    EXPECT_TRUE(this->linked_list->contains(1));
-    EXPECT_FALSE(this->linked_list->contains(2));
+    auto value = this->make_value(1);
+    this->linked_list->push_front(std::move(value));
+
+    value = this->make_value(1);
+    EXPECT_TRUE(this->linked_list->contains(
+        value,
+        [this](const ValueType& first, const ValueType& second) {
+            return this->are_equal_raw(first, second);
+        }
+    ));
+
+    value = this->make_value(2);
+    EXPECT_FALSE(this->linked_list->contains(
+        value,
+        [this](const ValueType& first, const ValueType& second) {
+            return this->are_equal_raw(first, second);
+        }
+    ));
 }
 
 TYPED_TEST(LinkedListTest, FillWithSamples) {
+    using ValueType = QueueValueType<TypeParam>::type;
+
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
-        this->linked_list->push_front(i);
+        auto value = this->make_value(i);
+        this->linked_list->push_front(std::move(value));
     }
     EXPECT_EQ(this->linked_list->size(), TEST_SAMPLE_SIZE);
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
-        EXPECT_TRUE(this->linked_list->contains(i));
+        auto value = this->make_value(i);
+        EXPECT_TRUE(this->linked_list->contains(
+            value,
+            [this](const ValueType& first, const ValueType& second) {
+                return this->are_equal_raw(first, second);
+            }
+        ));
 
         const auto pop_value = this->linked_list->pop_back();
-        EXPECT_EQ(pop_value.value(), i);
         EXPECT_TRUE(pop_value.has_value());
+        value = this->make_value(i);
+        EXPECT_TRUE(this->are_equal(std::move(value), std::move(pop_value)));
     }
     EXPECT_EQ(this->linked_list->size(), 0);
 }
@@ -139,7 +236,8 @@ TYPED_TEST(LinkedListTest, HighContentionPushFront) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count]() {
             for (size_t j = 0; j < TEST_SAMPLE_SIZE; ++j) {
-                this->linked_list->push_front(j);
+                auto value = this->make_value(j);
+                this->linked_list->push_front(std::move(value));
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -166,7 +264,8 @@ TYPED_TEST(LinkedListTest, HighContentionPushBack) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count]() {
             for (size_t j = 0; j < TEST_SAMPLE_SIZE; ++j) {
-                this->linked_list->push_back(j);
+                auto value = this->make_value(j);
+                this->linked_list->push_back(std::move(value));
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -196,13 +295,14 @@ TYPED_TEST(LinkedListTest, HighContentionPushOnEnds) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count]() {
             for (size_t j = 0; j < ADJUSTED_SAMPLE_SIZE; ++j) {
+                auto value = this->make_value(j);
                 multithreading::utilities::random_event<void>(
                     PUSH_FRONT_CHANCE,
-                    [this, &j]() {
-                        this->linked_list->push_front(j);
+                    [this, &value]() {
+                        this->linked_list->push_front(std::move(value));
                     },
-                    [this, &j]() {
-                        this->linked_list->push_back(j);
+                    [this, &value]() {
+                        this->linked_list->push_back(std::move(value));
                     }
                 );
 
@@ -230,7 +330,8 @@ TYPED_TEST(LinkedListTest, HighContentionPopFront) {
     std::atomic<size_t> dequeue_count = 0;
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE * TEST_THREADS_COUNT; ++i) {
-        this->linked_list->push_front(i);
+        auto value = this->make_value(i);
+        this->linked_list->push_front(std::move(value));
     }
 
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
@@ -257,7 +358,8 @@ TYPED_TEST(LinkedListTest, HighContentionPopBack) {
     std::atomic<size_t> dequeue_count = 0;
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE * TEST_THREADS_COUNT; ++i) {
-        this->linked_list->push_back(i);
+        auto value = this->make_value(i);
+        this->linked_list->push_back(std::move(value));
     }
 
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
@@ -280,6 +382,7 @@ TYPED_TEST(LinkedListTest, HighContentionPopBack) {
 }
 
 TYPED_TEST(LinkedListTest, HighContentionPopOnEnds) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr double POP_FRONT_CHANCE = 0.5;
     constexpr size_t ADJUSTED_SAMPLE_SIZE = TEST_SAMPLE_SIZE * 2;
 
@@ -288,18 +391,25 @@ TYPED_TEST(LinkedListTest, HighContentionPopOnEnds) {
     std::atomic<size_t> remaining = TEST_THREADS_COUNT * ADJUSTED_SAMPLE_SIZE;
 
     for (size_t i = 0; i < TEST_THREADS_COUNT * ADJUSTED_SAMPLE_SIZE; ++i) {
-        this->linked_list->push_back(i);
+        auto value = this->make_value(i);
+        this->linked_list->push_back(std::move(value));
     }
 
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &dequeue_count, &remaining]() {
             while (true) {
-                if (remaining.load(std::memory_order_acquire) == 0) break;
+                if (remaining.load(std::memory_order_acquire) == 0) {
+                    break;
+                }
 
-                const auto result = multithreading::utilities::random_event<std::optional<size_t>>(
+                const auto result = multithreading::utilities::random_event<std::optional<ValueType>>(
                     POP_FRONT_CHANCE,
-                    [this]() { return this->linked_list->pop_front(); },
-                    [this]() { return this->linked_list->pop_back(); }
+                    [this]() {
+                        return this->linked_list->pop_front();
+                    },
+                    [this]() {
+                        return this->linked_list->pop_back();
+                    }
                 );
 
                 if (result.has_value()) {
@@ -328,14 +438,17 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPFront) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count, i]() {
             for (size_t j = 0; j < TEST_SAMPLE_SIZE; ++j) {
-                this->linked_list->push_front(i * TEST_SAMPLE_SIZE + j);
+                auto value = this->make_value(i * TEST_SAMPLE_SIZE + j);
+                this->linked_list->push_front(std::move(value));
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }
         });
         barrier.enqueue([this, &dequeue_count, &remaining]() {
             while (true) {
                 size_t left = remaining.load(std::memory_order_acquire);
-                if (left == 0) break;
+                if (left == 0) {
+                    break;
+                }
 
                 if (this->linked_list->pop_front().has_value()) {
                     dequeue_count.fetch_add(1, std::memory_order_relaxed);
@@ -364,7 +477,8 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPBack) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count, i]() {
             for (size_t j = 0; j < TEST_SAMPLE_SIZE; ++j) {
-                this->linked_list->push_back(i * TEST_SAMPLE_SIZE + j);
+                auto value = this->make_value(i * TEST_SAMPLE_SIZE + j);
+                this->linked_list->push_back(std::move(value));
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }
         });
@@ -394,6 +508,7 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPBack) {
 }
 
 TYPED_TEST(LinkedListTest, HighContentionMCMPOnEnds) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr double PUSH_FRONT_CHANCE = 0.5;
 
     multithreading::utilities::threads::ThreadBarrier barrier;
@@ -404,13 +519,14 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPOnEnds) {
     for (size_t i = 0; i < TEST_THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count, i]() {
             for (size_t j = 0; j < TEST_SAMPLE_SIZE; ++j) {
+                auto value = this->make_value(i * TEST_SAMPLE_SIZE + j);
                 multithreading::utilities::random_event<void>(
                     PUSH_FRONT_CHANCE,
-                    [this, i, j]() {
-                        this->linked_list->push_front((i * TEST_SAMPLE_SIZE) + j);
+                    [this, &value]() {
+                        this->linked_list->push_front(std::move(value));
                     },
-                    [this, i, j]() {
-                        this->linked_list->push_back((i * TEST_SAMPLE_SIZE) + j);
+                    [this, &value]() {
+                        this->linked_list->push_back(std::move(value));
                     }
                 );
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
@@ -418,13 +534,19 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPOnEnds) {
         });
         barrier.enqueue([this, &dequeue_count, &remaining]() {
             while (true) {
-                size_t left = remaining.load(std::memory_order_acquire);
-                if (left == 0) break;
+                 const size_t left = remaining.load(std::memory_order_acquire);
+                if (left == 0) {
+                    break;
+                }
 
-                const auto result = multithreading::utilities::random_event<std::optional<int>>(
+                const auto result = multithreading::utilities::random_event<std::optional<ValueType>>(
                     0.5,
-                    [this]() { return this->linked_list->pop_front(); },
-                    [this]() { return this->linked_list->pop_back(); }
+                    [this]() {
+                        return this->linked_list->pop_front();
+                    },
+                    [this]() {
+                        return this->linked_list->pop_back();
+                    }
                 );
 
                 if (result.has_value()) {
@@ -458,10 +580,10 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPEverywhere) {
                     0,
                     enqueue_count.load(std::memory_order_relaxed)
                 );
-                const size_t push_item = (i * TEST_SAMPLE_SIZE) + j;
+                auto value = this->make_value((i * TEST_SAMPLE_SIZE) + j);
 
-                if (!this->linked_list->push_at(random_index, push_item)) {
-                    this->linked_list->push_front(push_item);
+                if (!this->linked_list->push_at(random_index, std::move(value))) {
+                    this->linked_list->push_front(std::move(value));
                 }
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }

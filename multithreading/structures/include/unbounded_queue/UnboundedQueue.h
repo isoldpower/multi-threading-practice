@@ -8,6 +8,8 @@ namespace multithreading::structures::unbounded_queue {
     template <typename T>
     class UnboundedQueue {
     public:
+        using value_type = T;
+
         virtual ~UnboundedQueue() = default;
         UnboundedQueue() = default;
 
@@ -18,12 +20,9 @@ namespace multithreading::structures::unbounded_queue {
 
         virtual std::optional<T> try_dequeue() = 0;
         virtual std::optional<T> wait_dequeue(
-            const std::chrono::steady_clock::duration& timeout
-        ) = 0;
+            const std::chrono::steady_clock::duration& timeout) = 0;
         virtual std::future<std::optional<T>> wait_dequeue_async(
-            const std::chrono::steady_clock::duration& timeout
-        ) = 0;
-        virtual void enqueue(const T& value) = 0;
+            const std::chrono::steady_clock::duration& timeout) = 0;
         virtual void enqueue(T&& value) = 0;
 
         [[nodiscard]] virtual bool is_empty() const = 0;

@@ -19,6 +19,7 @@ namespace multithreading::structures::unbounded_queue {
         std::atomic<LockFreeNode*> nextNode;
     public:
         explicit LockFreeNode(const T& value)
+        requires std::is_copy_constructible_v<T>
             : value(value)
             , nextNode(nullptr)
         {}
@@ -33,8 +34,8 @@ namespace multithreading::structures::unbounded_queue {
             , nextNode(nullptr)
         {}
 
-        [[nodiscard]] T& get() {
-            return value;
+        [[nodiscard]] T&& get() {
+            return std::move(value);
         }
 
         [[nodiscard]] LockFreeNode* next() const {
@@ -59,7 +60,7 @@ namespace multithreading::structures::unbounded_queue {
 
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> head;
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> tail;
-        std::counting_semaphore<> items_available;
+        std::counting_semaphore<std::numeric_limits<ptrdiff_t>::max()> items_available;
 
         void enqueue_node(LockFreeNode<T>* newNode) {
             size_t iterator = 0;
@@ -138,14 +139,13 @@ namespace multithreading::structures::unbounded_queue {
                             // handle it in the future anyways
                         }
                     } else {
-                        T value = firstValuable->get();
-
                         if (head->compare_exchange_weak(
                             first,
                             firstValuable,
                             std::memory_order_release,
                             std::memory_order_acquire
                         )) {
+                            T value = firstValuable->get();
                             // We successfully retrieved the first element and replaced the head
                             // reference. Now cleaning the references.
                             delete first;
@@ -222,6 +222,7 @@ namespace multithreading::structures::unbounded_queue {
                         // Dequeue succeeded - return the result of operation.
                         return result;
                     }
+                    items_available.release(1);
                 } else {
                     // Time limit exceeded, break from cycle.
                     break;
@@ -276,12 +277,6 @@ namespace multithreading::structures::unbounded_queue {
         LockFreeUnboundedQueue& operator=(LockFreeUnboundedQueue&& other) = delete;
         LockFreeUnboundedQueue(const LockFreeUnboundedQueue& other) = delete;
         LockFreeUnboundedQueue& operator=(const LockFreeUnboundedQueue& other) = delete;
-
-
-        void enqueue(const T& value) override {
-            auto* newNode = new LockFreeNode<T>(value);
-            impl.enqueue(newNode);
-        }
 
         void enqueue(T&& value) override {
             auto* newNode = new LockFreeNode<T>(std::move(value));

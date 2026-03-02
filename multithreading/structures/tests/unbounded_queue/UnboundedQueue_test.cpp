@@ -8,10 +8,50 @@
 
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 
+template <typename Queue>
+struct QueueValueType;
+
+template <template<typename> class Queue, typename T>
+struct QueueValueType<Queue<T>> {
+    using type = T;
+};
+
 template <typename T>
 class UnboundedQueueTest : public ::testing::Test {
 protected:
+    using ValueType = QueueValueType<T>::type;
     std::unique_ptr<T> queue;
+
+    ValueType make_value(int val) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return std::make_unique<int>(val);
+        } else {
+            return static_cast<ValueType>(val);
+        }
+    }
+
+    bool are_equal_raw(const ValueType& lhs, const ValueType& rhs) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return *lhs == *rhs;
+        } else {
+            return lhs == rhs;
+        }
+    }
+    bool are_equal(const ValueType& lhs, const std::optional<ValueType>& value) {
+        if (!value.has_value()) {
+            return false;
+        }
+
+        return this->are_equal_raw(lhs, value.value());
+    }
+
+    int to_raw(const ValueType& value) {
+        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+            return *value;
+        } else {
+            return value;
+        }
+    }
 
     void SetUp() override {
         queue = std::make_unique<T>();
@@ -24,7 +64,9 @@ protected:
 
 using UnboundedQueueImplementations = ::testing::Types<
     multithreading::structures::unbounded_queue::FGLockUnboundedQueue<int>,
-    multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<int>
+    multithreading::structures::unbounded_queue::FGLockUnboundedQueue<std::unique_ptr<int>>,
+    multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<int>,
+    multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<std::unique_ptr<int>>
 >;
 TYPED_TEST_SUITE(UnboundedQueueTest, UnboundedQueueImplementations);
 
@@ -33,50 +75,67 @@ TYPED_TEST(UnboundedQueueTest, StartsEmpty) {
 }
 
 TYPED_TEST(UnboundedQueueTest, EmptyDequeueNullopt) {
-    const std::optional<int> dequeued_value = this->queue->try_dequeue();
+    using ValueType = QueueValueType<TypeParam>::type;
+    const std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
     EXPECT_FALSE(dequeued_value.has_value());
 }
 
 TYPED_TEST(UnboundedQueueTest, SizeReflectsEnqueue) {
-    this->queue->enqueue(1);
+    auto value = this->make_value(1);
+    this->queue->enqueue(std::move(value));
+
     EXPECT_FALSE(this->queue->is_empty());
 }
 
 TYPED_TEST(UnboundedQueueTest, DequeueNotEmpty) {
-    this->queue->enqueue(1);
+    using ValueType = QueueValueType<TypeParam>::type;
 
-    const std::optional<int> dequeued_value = this->queue->try_dequeue();
+    auto value = this->make_value(1);
+    this->queue->enqueue(std::move(value));
+
+    const std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
     EXPECT_TRUE(dequeued_value.has_value());
 }
 
 TYPED_TEST(UnboundedQueueTest, FifoOperationsOrder) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr size_t TEST_SIZE = 2;
+
     for (size_t i = 0; i < TEST_SIZE; ++i) {
-        this->queue->enqueue(i);
+        auto value = this->make_value(i);
+        this->queue->enqueue(std::move(value));
     }
 
     for (size_t i = 0; i < TEST_SIZE; ++i) {
-        const std::optional<int> dequeued_value = this->queue->try_dequeue();
-        EXPECT_EQ(dequeued_value.value(), i);
+        const std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
+        auto value = this->make_value(i);
+        EXPECT_TRUE(this->are_equal(std::move(value), std::move(dequeued_value)));
     }
 }
 
 TYPED_TEST(UnboundedQueueTest, FreeAndRefill) {
+    using ValueType = QueueValueType<TypeParam>::type;
+
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
-        this->queue->enqueue(i);
+        auto value = this->make_value(i);
+        this->queue->enqueue(std::move(value));
     }
 
-    std::optional<int> dequeued_value = this->queue->try_dequeue();
-    EXPECT_EQ(dequeued_value.value(), 0);
+    std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
+    auto value = this->make_value(0);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(dequeued_value)));
 
-    this->queue->enqueue(TEST_SAMPLE_SIZE);
+    value = this->make_value(TEST_SAMPLE_SIZE);
+    this->queue->enqueue(std::move(value));
     for (size_t i = 1; i < TEST_SAMPLE_SIZE; ++i) {
         dequeued_value = this->queue->try_dequeue();
-        EXPECT_EQ(dequeued_value.value(), i);
+        value = this->make_value(i);
+        EXPECT_TRUE(this->are_equal(std::move(value), std::move(dequeued_value)));
     }
 
     dequeued_value = this->queue->try_dequeue();
-    EXPECT_EQ(dequeued_value.value(), TEST_SAMPLE_SIZE);
+    value = this->make_value(TEST_SAMPLE_SIZE);
+    EXPECT_TRUE(this->are_equal(std::move(value), std::move(dequeued_value)));
 }
 
 TYPED_TEST(UnboundedQueueTest, WaitDequeueTimeout) {
@@ -87,43 +146,49 @@ TYPED_TEST(UnboundedQueueTest, WaitDequeueTimeout) {
 }
 
 TYPED_TEST(UnboundedQueueTest, AsyncWaitDequeueTriggers) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
-    std::future<std::optional<int>> dequeue_future = this->queue->wait_dequeue_async(TEST_DURATION);
+    std::future<std::optional<ValueType>> dequeue_future = this->queue->wait_dequeue_async(TEST_DURATION);
     std::this_thread::sleep_for(TEST_DURATION / 2);
-    this->queue->enqueue(0);
-    const std::optional<int> dequeue_value = dequeue_future.get();
+    auto value = this->make_value(0);
+    this->queue->enqueue(std::move(value));
+    const std::optional<ValueType> dequeue_value = dequeue_future.get();
 
     EXPECT_TRUE(dequeue_value.has_value());
     EXPECT_TRUE(this->queue->is_empty());
 }
 
 TYPED_TEST(UnboundedQueueTest, WaitDequeueTriggers) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
-    std::optional<int> dequeue_value;
+    std::optional<ValueType> dequeue_value;
     auto dequeue_thread = std::thread([this, TEST_DURATION, &dequeue_value]() {
         dequeue_value = this->queue->wait_dequeue(TEST_DURATION);
     });
 
     std::this_thread::sleep_for(TEST_DURATION / 2);
-    this->queue->enqueue(0);
+    auto value = this->make_value(0);
+    this->queue->enqueue(std::move(value));
     dequeue_thread.join();
 
     EXPECT_TRUE(dequeue_value.has_value());
 }
 
 TYPED_TEST(UnboundedQueueTest, EnqueueAfterWaitDequeueTimeout) {
+    using ValueType = QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
     constexpr double TIMEOUT_OFFSET = 0.1;
 
-    std::optional<int> dequeue_value;
+    std::optional<ValueType> dequeue_value;
     auto dequeue_thread = std::thread([this, TEST_DURATION, &dequeue_value]() {
         dequeue_value = this->queue->wait_dequeue(TEST_DURATION);
     });
 
     std::this_thread::sleep_for(TEST_DURATION * (1 + TIMEOUT_OFFSET));
-    this->queue->enqueue(0);
+    auto value = this->make_value(0);
+    this->queue->enqueue(std::move(value));
     dequeue_thread.join();
 
     EXPECT_FALSE(dequeue_value.has_value());
@@ -136,7 +201,9 @@ TYPED_TEST(UnboundedQueueTest, HighContentionEnqueueResolution) {
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
         barrier.enqueue([i, this, &elements_occurrences, &occurrences_mutex]() {
-            this->queue->enqueue(i);
+            auto value = this->make_value(i);
+            this->queue->enqueue(std::move(value));
+
             const std::scoped_lock guard(occurrences_mutex);
             if (!elements_occurrences.contains(i)) {
                 elements_occurrences.emplace(i, 1);
@@ -163,29 +230,33 @@ TYPED_TEST(UnboundedQueueTest, HighContentionEnqueueResolution) {
 }
 
 TYPED_TEST(UnboundedQueueTest, HighContentionDequeueResolution) {
+    using ValueType = QueueValueType<TypeParam>::type;
     std::map<int, size_t> elements_occurrences;
     std::mutex occurrences_mutex;
     multithreading::utilities::threads::ThreadBarrier barrier;
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
-        this->queue->enqueue(i);
+        const int int_key = static_cast<int>(i);
+        auto value = this->make_value(int_key);
+        this->queue->enqueue(std::move(value));
 
-        if (!elements_occurrences.contains(i)) {
-            elements_occurrences.emplace(i, 1);
+        if (!elements_occurrences.contains(int_key)) {
+            elements_occurrences.emplace(int_key, 1);
         } else {
-            const size_t occurrences = elements_occurrences.at(i);
-            elements_occurrences.at(i) = occurrences + 1;
+            const size_t occurrences = elements_occurrences.at(int_key);
+            elements_occurrences.at(int_key) = occurrences + 1;
         }
     }
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
         barrier.enqueue([this, &elements_occurrences, &occurrences_mutex]() {
-            if (const auto dequeued_value = this->queue->try_dequeue(); dequeued_value.has_value()) {
-                const size_t value = dequeued_value.value();
+            if (auto dequeued_value = this->queue->try_dequeue(); dequeued_value.has_value()) {
+                const ValueType value = std::move(dequeued_value.value());
+                const int raw_value = this->to_raw(std::move(value));
                 const std::scoped_lock guard(occurrences_mutex);
 
-                if (elements_occurrences.contains(value) && elements_occurrences.at(value) == 1) {
-                    elements_occurrences.erase(value);
+                if (elements_occurrences.contains(raw_value) && elements_occurrences.at(raw_value) == 1) {
+                    elements_occurrences.erase(raw_value);
                 }
             }
         });
@@ -208,7 +279,8 @@ TYPED_TEST(UnboundedQueueTest, HighContentionMCMPResolution) {
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
         enqueue_barrier.enqueue([i, this, &enqueue_count]() {
-            this->queue->enqueue(static_cast<int>(i));
+            auto value = this->make_value(i);
+            this->queue->enqueue(std::move(value));
             enqueue_count.fetch_add(1, std::memory_order_relaxed);
         });
         dequeue_barrier.enqueue([this, &dequeue_count, TEST_DURATION]() {
@@ -243,7 +315,8 @@ TYPED_TEST(UnboundedQueueTest, SevereContentionMCMPResolution) {
     for (size_t i = 0; i < THREADS_COUNT; ++i) {
         barrier.enqueue([this, &enqueue_count]() {
             for (size_t j = 0; j < LARGE_QUEUE_SIZE; ++j) {
-                this->queue->enqueue(static_cast<int>(j));
+                auto value = this->make_value(j);
+                this->queue->enqueue(std::move(value));
                 enqueue_count.fetch_add(1, std::memory_order_relaxed);
             }
         });

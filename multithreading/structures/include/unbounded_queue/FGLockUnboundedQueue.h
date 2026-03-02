@@ -105,13 +105,13 @@ namespace multithreading::structures::unbounded_queue {
         FGLockUnboundedQueueImpl& operator=(FGLockUnboundedQueueImpl&& other) = delete;
 
         void enqueue(FGNode<T>* node) {
-            std::lock_guard lock(tail_mu);
+            std::scoped_lock lock(tail_mu);
 
             unsafe_enqueue(node);
         }
 
         std::optional<T> try_dequeue() {
-            std::lock_guard lock(head_mu);
+            std::scoped_lock lock(head_mu);
 
             return unsafe_dequeue();
         }
@@ -152,11 +152,6 @@ namespace multithreading::structures::unbounded_queue {
         FGLockUnboundedQueue& operator=(FGLockUnboundedQueue&& other) = delete;
 
         ~FGLockUnboundedQueue() override = default;
-
-        void enqueue(const T& value) override {
-            auto* node = new FGNode<T>(value);
-            impl.enqueue(node);
-        }
 
         void enqueue(T&& value) override {
             auto* node = new FGNode<T>(std::move(value));

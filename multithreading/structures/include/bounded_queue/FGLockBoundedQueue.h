@@ -242,16 +242,6 @@ namespace multithreading::structures::bounded_queue {
             });
         }
 
-        bool try_enqueue(const T& value) override {
-            auto* node = new FGNode<T>(value);
-            if (!impl.try_enqueue(node)) {
-                delete node;
-                return false;
-            }
-
-            return true;
-        }
-
         bool try_enqueue(T&& value) override {
             auto* node = new FGNode<T>(std::move(value));
             if (!impl.try_enqueue(node)) {

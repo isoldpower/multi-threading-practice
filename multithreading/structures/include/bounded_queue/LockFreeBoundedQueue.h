@@ -12,22 +12,27 @@ namespace multithreading::structures::bounded_queue {
     template <typename T>
     struct SlotValue {
     private:
-        // Generally speaking, the purpose is to reserve the memory of desired size and with
+        // The purpose is to reserve the memory of desired size and with
         // desired align that type is using, but leave the possibility to not always store the value.
-        // Modern C++ versions support the std::optional<T> which gives same functionality.
+        // Modern C++ versions support the built-in implementations which gives same functionality.
         std::aligned_storage_t<sizeof(T), alignof(T)> storage;
 
-        T* get_pointer() { return reinterpret_cast<T*>(&storage); }
+        T* get_pointer() {
+            return reinterpret_cast<T*>(&storage);
+        }
 
-        const T* get_pointer() const { return reinterpret_cast<const T*>(&storage); }
-
+        const T* get_pointer() const {
+            return reinterpret_cast<const T*>(&storage);
+        }
     public:
-        void emplace(const T& value) {
-            // We get the pointer
+        void emplace(const T& value)
+        requires std::is_copy_constructible_v<T> {
             new (get_pointer()) T(value);
         }
 
-        void emplace(T&& value) { new (get_pointer()) T(std::move(value)); }
+        void emplace(T&& value) {
+            new (get_pointer()) T(std::move(value));
+        }
 
         void erase() { (*get_pointer()).~T(); }
 
@@ -148,7 +153,7 @@ namespace multithreading::structures::bounded_queue {
             return try_dequeue();
         }
 
-        bool try_enqueue(T value) {
+        bool try_enqueue(T&& value) {
             while (true) {
                 size_t position = enqueue_pos->load(std::memory_order_relaxed);
                 const size_t lap_position = position % capacity;
@@ -172,9 +177,12 @@ namespace multithreading::structures::bounded_queue {
                 } else {
                     // Slot is ready and in the correct 'Empty' state. Proceed with CAS operation
                     // to ensure position didn't change since the beginning of the operation.
-                    if (enqueue_pos->compare_exchange_weak(position, position + 1,
-                                                          std::memory_order_relaxed,
-                                                          std::memory_order_relaxed)) {
+                    if (enqueue_pos->compare_exchange_weak(
+                        position,
+                        position + 1,
+                        std::memory_order_relaxed,
+                        std::memory_order_relaxed
+                    )) {
                         data[lap_position].value.emplace(std::move(value));
                         data[lap_position].sequence.store(position + 1, std::memory_order_release);
                         items_available.release(1);
@@ -238,14 +246,18 @@ namespace multithreading::structures::bounded_queue {
         }
 
         std::future<std::optional<T>> wait_dequeue_async(
-                const std::chrono::steady_clock::duration& timeout) override {
-            return std::async(std::launch::async,
-                              [this, timeout]() -> auto { return this->impl.wait_dequeue(timeout); });
+            const std::chrono::steady_clock::duration& timeout
+        ) override {
+            return std::async(
+                std::launch::async,
+                [this, timeout]() -> auto {
+                    return this->impl.wait_dequeue(timeout);
+                });
         }
 
-        bool try_enqueue(const T& value) override { return impl.try_enqueue(value); }
-
-        bool try_enqueue(T&& value) override { return impl.try_enqueue(std::move(value)); }
+        bool try_enqueue(T&& value) override {
+            return impl.try_enqueue(std::move(value));
+        }
 
         [[nodiscard]] bool is_empty(bool) const override { return impl.is_empty(); }
 
