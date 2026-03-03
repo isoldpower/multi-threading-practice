@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
-#include <memory>
+#include <multithreading/utilities/include/tests/AmorphicTest.h>
 #include <multithreading/utilities/include/threads/ThreadBarrier.h>
+
+#include <memory>
 
 #include "../../include/unbounded_queue/FGLockUnboundedQueue.h"
 #include "../../include/unbounded_queue/LockFreeUnboundedQueue.h"
@@ -8,50 +10,10 @@
 
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 
-template <typename Queue>
-struct QueueValueType;
-
-template <template<typename> class Queue, typename T>
-struct QueueValueType<Queue<T>> {
-    using type = T;
-};
-
 template <typename T>
-class UnboundedQueueTest : public ::testing::Test {
+class UnboundedQueueTest : public multithreading::utilities::tests::AmorphicTest<T> {
 protected:
-    using ValueType = QueueValueType<T>::type;
     std::unique_ptr<T> queue;
-
-    ValueType make_value(int val) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return std::make_unique<int>(val);
-        } else {
-            return static_cast<ValueType>(val);
-        }
-    }
-
-    bool are_equal_raw(const ValueType& lhs, const ValueType& rhs) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return *lhs == *rhs;
-        } else {
-            return lhs == rhs;
-        }
-    }
-    bool are_equal(const ValueType& lhs, const std::optional<ValueType>& value) {
-        if (!value.has_value()) {
-            return false;
-        }
-
-        return this->are_equal_raw(lhs, value.value());
-    }
-
-    int to_raw(const ValueType& value) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return *value;
-        } else {
-            return value;
-        }
-    }
 
     void SetUp() override {
         queue = std::make_unique<T>();
@@ -75,7 +37,7 @@ TYPED_TEST(UnboundedQueueTest, StartsEmpty) {
 }
 
 TYPED_TEST(UnboundedQueueTest, EmptyDequeueNullopt) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     const std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
     EXPECT_FALSE(dequeued_value.has_value());
 }
@@ -88,7 +50,7 @@ TYPED_TEST(UnboundedQueueTest, SizeReflectsEnqueue) {
 }
 
 TYPED_TEST(UnboundedQueueTest, DequeueNotEmpty) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     auto value = this->make_value(1);
     this->queue->enqueue(std::move(value));
@@ -98,7 +60,7 @@ TYPED_TEST(UnboundedQueueTest, DequeueNotEmpty) {
 }
 
 TYPED_TEST(UnboundedQueueTest, FifoOperationsOrder) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr size_t TEST_SIZE = 2;
 
     for (size_t i = 0; i < TEST_SIZE; ++i) {
@@ -114,7 +76,7 @@ TYPED_TEST(UnboundedQueueTest, FifoOperationsOrder) {
 }
 
 TYPED_TEST(UnboundedQueueTest, FreeAndRefill) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
         auto value = this->make_value(i);
@@ -146,7 +108,7 @@ TYPED_TEST(UnboundedQueueTest, WaitDequeueTimeout) {
 }
 
 TYPED_TEST(UnboundedQueueTest, AsyncWaitDequeueTriggers) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
     std::future<std::optional<ValueType>> dequeue_future = this->queue->wait_dequeue_async(TEST_DURATION);
@@ -160,7 +122,7 @@ TYPED_TEST(UnboundedQueueTest, AsyncWaitDequeueTriggers) {
 }
 
 TYPED_TEST(UnboundedQueueTest, WaitDequeueTriggers) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
     std::optional<ValueType> dequeue_value;
@@ -177,7 +139,7 @@ TYPED_TEST(UnboundedQueueTest, WaitDequeueTriggers) {
 }
 
 TYPED_TEST(UnboundedQueueTest, EnqueueAfterWaitDequeueTimeout) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
     constexpr double TIMEOUT_OFFSET = 0.1;
 
@@ -230,7 +192,7 @@ TYPED_TEST(UnboundedQueueTest, HighContentionEnqueueResolution) {
 }
 
 TYPED_TEST(UnboundedQueueTest, HighContentionDequeueResolution) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     std::map<int, size_t> elements_occurrences;
     std::mutex occurrences_mutex;
     multithreading::utilities::threads::ThreadBarrier barrier;

@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
+#include <multithreading/utilities/include/RandomEvent.h>
+#include <multithreading/utilities/include/tests/AmorphicTest.h>
+#include <multithreading/utilities/include/threads/ThreadBarrier.h>
 
+#include <map>
 #include <memory>
 #include <optional>
-#include <map>
-#include <multithreading/utilities/include/threads/ThreadBarrier.h>
-#include <multithreading/utilities/include/RandomEvent.h>
 
 #include "../../include/linked_list/FGLockLinkedList.h"
 #include "../../include/linked_list/LockFreeLinkedList.h"
@@ -12,51 +13,10 @@
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 constexpr size_t TEST_THREADS_COUNT = 8;
 
-template <typename Queue>
-struct QueueValueType;
-
-template <template<typename> class Queue, typename T>
-struct QueueValueType<Queue<T>> {
-    using type = T;
-};
-
 template <typename T>
-class LinkedListTest : public ::testing::Test {
+class LinkedListTest : public multithreading::utilities::tests::AmorphicTest<T> {
 protected:
-    using ValueType = QueueValueType<T>::type;
     std::unique_ptr<T> linked_list;
-
-    ValueType make_value(int val) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return std::make_unique<int>(val);
-        } else {
-            return static_cast<ValueType>(val);
-        }
-    }
-
-    bool are_equal_raw(const ValueType& lhs, const ValueType& rhs) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return *lhs == *rhs;
-        } else {
-            return lhs == rhs;
-        }
-    }
-    bool are_equal(const ValueType& lhs, const std::optional<ValueType>& value) {
-        if (!value.has_value()) {
-            return false;
-        }
-
-        return this->are_equal_raw(lhs, value.value());
-    }
-
-
-    int to_raw(const ValueType& value) {
-        if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
-            return *value;
-        } else {
-            return value;
-        }
-    }
 
     void SetUp() override {
         linked_list = std::make_unique<T>();
@@ -106,7 +66,7 @@ TYPED_TEST(LinkedListTest, PopDeletesElement) {
 }
 
 TYPED_TEST(LinkedListTest, PopAtCorrectIndex) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     auto value = this->make_value(1);
     this->linked_list->push_front(std::move(value));
@@ -123,7 +83,7 @@ TYPED_TEST(LinkedListTest, PopAtCorrectIndex) {
 }
 
 TYPED_TEST(LinkedListTest, PopEmptyNullopt) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     std::optional<ValueType> pop_value = this->linked_list->pop_front();
     EXPECT_FALSE(pop_value.has_value());
@@ -147,7 +107,7 @@ TYPED_TEST(LinkedListTest, PushPopElement) {
 }
 
 TYPED_TEST(LinkedListTest, FrontBackCorrectPushOrder) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     auto value = this->make_value(1);
     this->linked_list->push_front(std::move(value));
@@ -181,7 +141,7 @@ TYPED_TEST(LinkedListTest, ContainsFalseOnEmpty) {
 }
 
 TYPED_TEST(LinkedListTest, ContainsTrueAfterPush) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     auto value = this->make_value(1);
     this->linked_list->push_front(std::move(value));
@@ -204,7 +164,7 @@ TYPED_TEST(LinkedListTest, ContainsTrueAfterPush) {
 }
 
 TYPED_TEST(LinkedListTest, FillWithSamples) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
 
     for (size_t i = 0; i < TEST_SAMPLE_SIZE; ++i) {
         auto value = this->make_value(i);
@@ -382,7 +342,7 @@ TYPED_TEST(LinkedListTest, HighContentionPopBack) {
 }
 
 TYPED_TEST(LinkedListTest, HighContentionPopOnEnds) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr double POP_FRONT_CHANCE = 0.5;
     constexpr size_t ADJUSTED_SAMPLE_SIZE = TEST_SAMPLE_SIZE * 2;
 
@@ -508,7 +468,7 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPBack) {
 }
 
 TYPED_TEST(LinkedListTest, HighContentionMCMPOnEnds) {
-    using ValueType = QueueValueType<TypeParam>::type;
+    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr double PUSH_FRONT_CHANCE = 0.5;
 
     multithreading::utilities::threads::ThreadBarrier barrier;

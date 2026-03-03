@@ -41,7 +41,7 @@ namespace multithreading::utilities {
                     afterTaskDecorator.value()(taskResult);
                 }
 
-                return 0;
+                return taskResult;
             } catch (std::exception& exception) {
                 const std::string prefix = "Uncaught exception at " + appInformation.appName;
                 std::cout << prefix << ": " << exception.what() << '\n';

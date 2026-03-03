@@ -35,6 +35,17 @@ elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(cxx_setup INTERFACE -Wall -Wextra -Wpedantic)
 endif()
 
+# Enable Address Sanitizer
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+if(ENABLE_ASAN)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(cxx_setup INTERFACE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(cxx_setup INTERFACE -fsanitize=address)
+    else()
+        message(WARNING "ASan is not supported for this compiler, skipping...")
+    endif()
+endif()
+
 target_compile_features(cxx_setup
         INTERFACE cxx_std_20)
 target_include_directories(cxx_setup

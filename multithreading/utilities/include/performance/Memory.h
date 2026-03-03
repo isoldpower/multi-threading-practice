@@ -3,7 +3,6 @@
 #include "../Units.h"
 #include <sys/resource.h>
 #include <iostream>
-#include <ostream>
 
 #ifdef __linux__
 #include <fstream>

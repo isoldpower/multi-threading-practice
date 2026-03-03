@@ -55,5 +55,4 @@ Warships game against AI with skills, game saves, and progression.
 
 TODO:
 - [ ] Write benchmarks tests
-- [ ] Write utilities tests
-- [ ] Adapt structures to be usable with move-only types
+- [ ] Complete two other laboratory works

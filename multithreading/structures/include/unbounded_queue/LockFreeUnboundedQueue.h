@@ -2,9 +2,12 @@
 
 #include <cstddef>
 #include <semaphore>
+#include <multithreading/utilities/include/performance/AlignedField.h>
+#include <multithreading/utilities/include/performance/EpochReclamation.h>
+#include <multithreading/utilities/include/performance/EpochGuard.h>
 
 #include "./UnboundedQueue.h"
-#include "multithreading/utilities/include/performance/AlignedField.h"
+
 
 namespace multithreading::structures::unbounded_queue {
 
@@ -61,10 +64,12 @@ namespace multithreading::structures::unbounded_queue {
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> head;
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> tail;
         std::counting_semaphore<std::numeric_limits<ptrdiff_t>::max()> items_available;
+        utilities::performance::EpochReclamation<LockFreeNode<T>> epoch_reclamation;
 
         void enqueue_node(LockFreeNode<T>* newNode) {
-            size_t iterator = 0;
+            utilities::performance::EpochGuard<LockFreeNode<T>> guard(&epoch_reclamation);
 
+            size_t iterator = 0;
             while (iterator < maxAlgorithmDepth) {
                 iterator++;
                 LockFreeNode<T>* last = tail->load(std::memory_order_acquire);
@@ -110,8 +115,9 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         std::optional<T> dequeue_node() {
-            size_t iterator = 0;
+            utilities::performance::EpochGuard<LockFreeNode<T>> guard(&epoch_reclamation);
 
+            size_t iterator = 0;
             while (iterator < maxAlgorithmDepth) {
                 iterator++;
                 LockFreeNode<T>* first = head->load(std::memory_order_acquire);
@@ -148,7 +154,7 @@ namespace multithreading::structures::unbounded_queue {
                             T value = firstValuable->get();
                             // We successfully retrieved the first element and replaced the head
                             // reference. Now cleaning the references.
-                            delete first;
+                            epoch_reclamation.retire_reference(first);
                             return value;
                         } else {
                             // We lost the race condition to another thread - it dequeued before

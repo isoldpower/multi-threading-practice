@@ -12,7 +12,9 @@ compile:
 	      -DCMAKE_CXX_COMPILER="$(CPP_COMPILER)" \
 	      -DCMAKE_C_COMPILER="$(C_COMPILER)" \
 	      -DCMAKE_BUILD_TYPE="$(BUILD_TYPE)" \
-	      $(if $(filter Debug,$(BUILD_TYPE)),-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF)
+	      $(if $(filter Debug,$(BUILD_TYPE)),-DBUILD_TESTING=ON,-DBUILD_TESTING=OFF) \
+	      $(EXTRA_CMAKE_FLAGS)
+
 	cmake --build "$(BUILD_DIR)" --config "$(BUILD_TYPE)"
 
 rebuild:
@@ -21,7 +23,12 @@ rebuild-debug:
 	$(MAKE) rebuild BUILD_TYPE=Debug
 rebuild-release:
 	$(MAKE) rebuild BUILD_TYPE=Release
+rebuild-asan:
+	$(MAKE) rebuild BUILD_TYPE=Debug EXTRA_CMAKE_FLAGS="-DENABLE_ASAN=ON"
 
 test:
 	if test "$(PRESERVE)" -eq "0"; then $(MAKE) rebuild-debug; fi
+	GTEST_COLOR=1 ctest --test-dir "$(BUILD_DIR)" --build-config "Debug" --output-on-failure
+test-asan:
+	if test "$(PRESERVE)" -eq "0"; then $(MAKE) rebuild-asan; fi
 	GTEST_COLOR=1 ctest --test-dir "$(BUILD_DIR)" --build-config "Debug" --output-on-failure

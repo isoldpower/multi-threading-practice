@@ -26,28 +26,29 @@ namespace multithreading::utilities::performance {
 
     template <typename T>
     class EpochReclamation {
+        friend class EpochReclamationTest;
     private:
         std::array<ThreadSlot, MAX_THREADS> thread_slots;
         std::array<RetireList<T>, RETIRE_CLUSTER> retire_lists;
 
-        static thread_local ssize_t my_thread_id;
-        static thread_local size_t reclamation_counter;
-        std::atomic<size_t> last_reclaimed_epoch{0};
+        static thread_local std::unordered_map<const EpochReclamation<T>*, size_t> instance_thread_ids;
+        static thread_local std::unordered_map<const EpochReclamation<T>*, size_t> instance_reclamation_counters;
+        std::atomic<size_t> last_reclaimed_epoch{ SIZE_MAX };
         std::atomic<size_t> next_thread_id{0};
         std::atomic<size_t> epoch_total{0};
 
         size_t get_or_assign_thread_id() {
-            if (my_thread_id == -1) {
-                my_thread_id = next_thread_id.fetch_add(1, std::memory_order_relaxed);
-
-                if (std::cmp_greater_equal(my_thread_id , MAX_THREADS)) {
-                    throw std::runtime_error("Too many threads are registered for epoch reclamation");
-                } else {
-                    thread_slots[my_thread_id].is_used.store(true, std::memory_order_release);
+            auto iterator = instance_thread_ids.find(this);
+            if (iterator == instance_thread_ids.end()) {
+                size_t new_id = next_thread_id.fetch_add(1, std::memory_order_relaxed);
+                if (std::cmp_greater_equal(new_id, MAX_THREADS)) {
+                    throw std::runtime_error("Too many threads registered for epoch reclamation");
                 }
+                instance_thread_ids[this] = new_id;
+                thread_slots.at(new_id).is_used.store(true, std::memory_order_release);
+                return new_id;
             }
-
-            return my_thread_id;
+            return iterator->second;
         }
 
         size_t get_oldest_active_epoch() const {
@@ -81,27 +82,20 @@ namespace multithreading::utilities::performance {
 
         void reclaim_obsolete_memory() {
             const size_t min_epoch = get_oldest_active_epoch();
-            if (min_epoch < EPOCH_WINDOW_SIZE) {
-                return;
-            }
+            if (min_epoch < EPOCH_WINDOW_SIZE) return;
 
             const size_t safe_epoch = min_epoch - EPOCH_WINDOW_SIZE;
             const size_t last_reclaimed = last_reclaimed_epoch.load(std::memory_order_acquire);
+            const size_t start_epoch = (last_reclaimed == SIZE_MAX) ? 0 : last_reclaimed + 1; // ← fix
 
-            for (size_t iterator_epoch = last_reclaimed + 1; iterator_epoch <= safe_epoch; ++iterator_epoch) {
-                size_t retire_list_index = iterator_epoch % RETIRE_CLUSTER;
-                RetireList<T>& list = retire_lists[retire_list_index];
-
+            for (size_t epoch = start_epoch; epoch <= safe_epoch; ++epoch) {
+                RetireList<T>& list = retire_lists[epoch % RETIRE_CLUSTER];
                 std::lock_guard list_guard(list.list_mutex);
-
-                for (T* reference : list.retire_references) {
-                    delete reference;
-                }
-
+                for (T* ref : list.retire_references) delete ref;
                 list.retire_references.clear();
             }
 
-            if (safe_epoch > last_reclaimed) {
+            if (last_reclaimed == SIZE_MAX || safe_epoch > last_reclaimed) {
                 last_reclaimed_epoch.store(safe_epoch, std::memory_order_release);
             }
         }
@@ -120,16 +114,18 @@ namespace multithreading::utilities::performance {
 
         void engage_epoch_user() {
             size_t const thread_id = this->get_or_assign_thread_id();
-            const size_t current_epoch = epoch_total.load(std::memory_order_acquire);
+            thread_slots.at(thread_id).is_used.store(true, std::memory_order_release);
 
-            thread_slots[thread_id].local_epoch.store(current_epoch, std::memory_order_release);
+            const size_t current_epoch = epoch_total.load(std::memory_order_acquire);
+            thread_slots.at(thread_id).local_epoch.store(current_epoch, std::memory_order_release);
         }
 
         void free_epoch_user() {
             size_t const thread_id = this->get_or_assign_thread_id();
-            thread_slots[thread_id].local_epoch.store(INACTIVE_SIGN, std::memory_order_release);
+            thread_slots.at(thread_id).local_epoch.store(INACTIVE_SIGN, std::memory_order_release);
 
-            if (++reclamation_counter % RECLAMATION_FREQUENCY == 0) {
+            size_t& counter = instance_reclamation_counters[this];
+            if (++counter % RECLAMATION_FREQUENCY == 0) {
                 this->try_advance_epoch();
                 this->reclaim_obsolete_memory();
             }
@@ -146,8 +142,11 @@ namespace multithreading::utilities::performance {
     };
 
     template <typename T>
-    thread_local ssize_t EpochReclamation<T>::my_thread_id = -1;
+    thread_local std::unordered_map<const EpochReclamation<T>*, size_t>
+        EpochReclamation<T>::instance_thread_ids;
+
     template <typename T>
-    thread_local size_t EpochReclamation<T>::reclamation_counter = 0;
+    thread_local std::unordered_map<const EpochReclamation<T>*, size_t>
+        EpochReclamation<T>::instance_reclamation_counters;
 } // namespace multithreading::utilities::performance
 

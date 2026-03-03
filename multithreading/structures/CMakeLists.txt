@@ -1,7 +1,5 @@
 add_library(structures
         src/placeholder.cpp)
-include_directories(include)
-target_link_libraries(structures PUBLIC cxx_setup utilities)
 
 if (BUILD_TESTING)
     add_executable(structures_tests
@@ -13,3 +11,5 @@ if (BUILD_TESTING)
     gtest_discover_tests(structures_tests)
 endif()
 
+include_directories(include)
+target_link_libraries(structures PUBLIC cxx_setup utilities)

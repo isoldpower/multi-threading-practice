@@ -1,10 +1,8 @@
 #pragma once
 
-#include <functional>
 #include <future>
 #include <iostream>
 #include <thread>
-#include <tuple>
 
 namespace multithreading::utilities::threads {
 
@@ -16,19 +14,12 @@ namespace multithreading::utilities::threads {
 
         std::vector<std::thread> threads;
     public:
-        ThreadBarrier()
-            : barrier(start_promise.get_future().share())
-            , is_terminated(false)
-        {}
-
-        ~ThreadBarrier() {
-            this->terminate();
-        }
+        ThreadBarrier();
+        ~ThreadBarrier();
 
         template <typename TCallable>
         std::thread* enqueue(TCallable&& task) {
             auto wait_thread = std::thread([this, task = std::forward<TCallable>(task)]() {
-                // Wait or terminate if is_terminated set to true
                 barrier.wait();
 
                 if (!is_terminated.load(std::memory_order_acquire)) {
@@ -40,29 +31,12 @@ namespace multithreading::utilities::threads {
             return &threads.back();
         }
 
-        void kickstart() {
-            start_promise.set_value();
-        }
+        void wait();
 
-        void terminate() {
-            is_terminated.store(true, std::memory_order_release);
+        void kickstart();
 
-            try {
-                start_promise.set_value();
-            } catch (std::future_error& error) {
-                // Can't terminate on a flight. Ignore the error
-            }
+        void terminate();
 
-            this->join();
-        }
-
-        void join() {
-            for (std::thread& thread : threads) {
-                if (thread.joinable()) {
-                    thread.join();
-                }
-            }
-            threads.clear();
-        }
+        void join();
     };
 } // namespace multithreading::utilities::threads
