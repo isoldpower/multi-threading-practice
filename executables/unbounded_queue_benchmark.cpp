@@ -66,7 +66,7 @@ auto main() -> int {
             std::make_shared<LockFreeUnboundedQueue<int>>(LockFreeQueueConfig{
                 .maxUpdateDepth = 10000
             }),
-	    std::string{"Lock-free Queue Benchmark", std::allocator<char>{}}
+	        std::string{"Lock-free Queue Benchmark", std::allocator<char>{}}
         ),
         BenchmarkTask<UnboundedQueue<int>>(
             std::make_shared<FGLockUnboundedQueue<int>>(),

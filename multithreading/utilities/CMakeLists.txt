@@ -12,10 +12,10 @@ if (BUILD_TESTING)
             tests/threads/RandomGenerator_test.cpp
             tests/RandomEvent_test.cpp
             tests/Application_test.cpp)
-    target_link_libraries(utilities_tests PRIVATE GTest::gtest_main utilities)
     include(GoogleTest)
+    target_link_libraries(utilities_tests PRIVATE GTest::gtest_main utilities)
     gtest_discover_tests(utilities_tests)
 endif()
 
 include_directories(include)
-target_link_libraries(utilities PUBLIC GTest::gtest_main cxx_setup)
+target_link_libraries(utilities PUBLIC cxx_setup)

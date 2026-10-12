@@ -23,11 +23,9 @@ namespace multithreading::utilities::threads {
     void ThreadBarrier::terminate() {
         is_terminated.store(true, std::memory_order_release);
 
-        try {
+        std::call_once(start_once, [this]() {
             start_promise.set_value();
-        } catch (std::future_error& error) {
-            // Can't terminate on a flight. Ignore the error
-        }
+        });
 
         this->join();
     }

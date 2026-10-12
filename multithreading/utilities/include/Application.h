@@ -23,7 +23,7 @@ namespace multithreading::utilities {
     private:
         ApplicationInfo<T> appInformation;
     public:
-        explicit Application(ApplicationInfo<T> information)
+        explicit Application(ApplicationInfo<T> information) noexcept
             : appInformation(std::move(information))
         {}
 

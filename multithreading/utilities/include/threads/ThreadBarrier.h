@@ -8,6 +8,7 @@ namespace multithreading::utilities::threads {
 
     class ThreadBarrier {
     private:
+        std::once_flag start_once;
         std::promise<void> start_promise;
         std::shared_future<void> barrier;
         std::atomic<bool> is_terminated;
