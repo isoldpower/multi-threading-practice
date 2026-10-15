@@ -1,17 +1,21 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
+#include <exception>
 #include <functional>
 #include <iostream>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <utility>
-#include <optional>
 
 namespace multithreading::utilities {
 
+    constexpr size_t APPLICATION_INFO_ALIGNMENT = 128;
+
     template <typename T>
-    struct alignas(64) ApplicationInfo {
-    public:
+    struct alignas(APPLICATION_INFO_ALIGNMENT) ApplicationInfo {
         std::string appName;
         std::string appVersion;
         std::optional<std::function<void()>> beforeTask;
@@ -22,12 +26,13 @@ namespace multithreading::utilities {
     class Application {
     private:
         ApplicationInfo<T> appInformation;
+
     public:
         explicit Application(ApplicationInfo<T> information) noexcept
-            : appInformation(std::move(information))
-        {}
+            : appInformation(std::move(information)) {
+        }
 
-        std::optional<T> SafeStart(std::function<T()> task) noexcept {
+        std::optional<T> SafeStart(const std::function<T()>& task) noexcept {
             try {
                 const auto beforeTaskDecorator = appInformation.beforeTask;
                 if (beforeTaskDecorator.has_value()) {
@@ -43,8 +48,13 @@ namespace multithreading::utilities {
 
                 return taskResult;
             } catch (std::exception& exception) {
-                const std::string prefix = "Uncaught exception at " + appInformation.appName;
-                std::cout << prefix << ": " << exception.what() << '\n';
+                std::cout << "Uncaught exception at " << appInformation.appName << ": "
+                          << exception.what() << '\n';
+
+                return std::nullopt;
+            } catch (...) {
+                std::cout << "Uncaught non-standard exception at " << appInformation.appName
+                          << '\n';
 
                 return std::nullopt;
             }
@@ -52,16 +62,19 @@ namespace multithreading::utilities {
 
         template <size_t N>
         std::array<std::optional<T>, N> SafeStartQueue(
-            std::array<std::function<T()>, N> task
+            const std::array<std::function<T()>, N>& task
         ) noexcept {
             std::array<std::optional<T>, N> executionResults{};
-
-            for (size_t i = 0; i < N; i++) {
-                std::optional<T> executionResult = this->SafeStart(task.at(i));
-                executionResults.at(i) = executionResult;
-            }
+            std::ranges::transform(
+                task,
+                executionResults.begin(),
+                [this](const auto& single) {
+                    return this->SafeStart(single);
+                },
+                std::identity{}
+            );
 
             return executionResults;
         }
     };
-} // namespace multithreading::utilities
+}  // namespace multithreading::utilities

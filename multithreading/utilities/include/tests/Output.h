@@ -10,4 +10,4 @@ namespace multithreading::utilities::tests {
         callable();
         testing::internal::GetCapturedStdout();
     }
-} // namespace multithreading::utilities::tests
+}  // namespace multithreading::utilities::tests

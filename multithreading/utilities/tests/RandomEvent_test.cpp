@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "../include/RandomEvent.h"
+
+#include <gtest/gtest.h>
 
 using multithreading::utilities::random_event;
 
@@ -9,9 +9,13 @@ TEST(RandomEventTest, AlwaysCallsFirstWhenChanceIsOne) {
     size_t first_count = 0;
 
     for (size_t i = 0; i < ITERATIONS; ++i) {
-        random_event<void>(1.0,
-            [&first_count]() { ++first_count; },
-            []() {}
+        random_event<void>(
+            1.0,
+            [&first_count]() {
+                ++first_count;
+            },
+            []() {
+            }
         );
     }
 
@@ -25,8 +29,11 @@ TEST(RandomEventTest, AlwaysCallsSecondWhenChanceIsZero) {
     for (size_t i = 0; i < ITERATIONS; ++i) {
         random_event<void>(
             0.0,
-            []() {},
-            [&second_count]() { ++second_count; }
+            []() {
+            },
+            [&second_count]() {
+                ++second_count;
+            }
         );
     }
 
@@ -87,11 +94,13 @@ TEST(RandomEventTest, DistributionMatchesChance) {
     size_t first_count = 0;
 
     for (size_t i = 0; i < ITERATIONS; ++i) {
-        random_event<void>(CHANCE,
+        random_event<void>(
+            CHANCE,
             [&first_count]() {
                 ++first_count;
             },
-            []() {}
+            []() {
+            }
         );
     }
 
@@ -148,7 +157,8 @@ TEST(RandomEventTest, ConcurrentCallsAreSafe) {
                     }
                 );
                 if (call_count != 1) {
-                    failures.at(i) += "Expected exactly one branch at j=" + std::to_string(j) + "\n";
+                    failures.at(i) +=
+                        "Expected exactly one branch at j=" + std::to_string(j) + "\n";
                 }
             }
         });

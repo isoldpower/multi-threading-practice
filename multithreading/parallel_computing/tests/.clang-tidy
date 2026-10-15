@@ -1,0 +1,13 @@
+# Tests inherit the project checks, minus those that fight test idioms:
+# - literal expected values are what a test asserts, so naming each one hides intent;
+# - gtest fixtures share state with their test bodies through protected members;
+# - EXPECT_*/ASSERT_* expand into branches that would count against cognitive complexity.
+InheritParentConfig: true
+Checks: >
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-non-private-member-variables-in-classes
+CheckOptions:
+  - key:   readability-function-cognitive-complexity.IgnoreMacros
+    value: true

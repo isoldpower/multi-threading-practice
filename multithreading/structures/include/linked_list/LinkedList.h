@@ -1,20 +1,28 @@
 #pragma once
 
-#include <optional>
 #include <cstdint>
 #include <functional>
-
+#include <optional>
 
 namespace multithreading::structures::linked_list {
 
     template <typename T>
     struct LinkedListNode {
-    protected:
+    private:
         T node_value;
 
+    protected:
         explicit LinkedListNode(T&& value)
-            : node_value(std::move(value))
-        {}
+            : node_value(std::move(value)) {
+        }
+
+        [[nodiscard]] T& stored_value() noexcept {
+            return node_value;
+        }
+
+        [[nodiscard]] const T& stored_value() const noexcept {
+            return node_value;
+        }
     };
 
     template <typename T>
@@ -46,4 +54,4 @@ namespace multithreading::structures::linked_list {
         ) = 0;
         virtual bool contains(const T& value) = 0;
     };
-} // namespace multithreading::structures::linked_list
+}  // namespace multithreading::structures::linked_list

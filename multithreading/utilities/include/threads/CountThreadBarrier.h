@@ -1,8 +1,9 @@
 #pragma once
 
-#include "./ThreadBarrier.h"
 #include <atomic>
 #include <cstdint>
+
+#include "./ThreadBarrier.h"
 
 namespace multithreading::utilities::threads {
 
@@ -12,13 +13,19 @@ namespace multithreading::utilities::threads {
         std::atomic<size_t> enqueued_size;
         ThreadBarrier barrier;
         std::mutex enqueue_mutex;
+
     public:
         explicit CountThreadBarrier(const size_t count)
             : target_count(count)
-            , enqueued_size(0)
-        {}
+            , enqueued_size(0) {
+        }
 
         ~CountThreadBarrier() = default;
+
+        CountThreadBarrier(const CountThreadBarrier&) = delete;
+        CountThreadBarrier& operator=(const CountThreadBarrier&) = delete;
+        CountThreadBarrier(CountThreadBarrier&&) = delete;
+        CountThreadBarrier& operator=(CountThreadBarrier&&) = delete;
 
         template <typename TCallable>
         std::thread* enqueue(TCallable&& task) {
@@ -40,7 +47,8 @@ namespace multithreading::utilities::threads {
         }
 
         std::thread* enqueue() {
-            return this->enqueue([](){});
+            return this->enqueue([]() {
+            });
         }
 
         template <typename TCallable>
@@ -62,4 +70,4 @@ namespace multithreading::utilities::threads {
             barrier.join();
         }
     };
-} // namespace multithreading::utilities::threads
+}  // namespace multithreading::utilities::threads

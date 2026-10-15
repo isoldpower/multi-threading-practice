@@ -1,22 +1,29 @@
 #pragma once
 
+#include <atomic>
+#include <deque>
 #include <future>
-#include <iostream>
+#include <mutex>
 #include <thread>
 
 namespace multithreading::utilities::threads {
 
     class ThreadBarrier {
     private:
-        std::once_flag start_once;
+        std::once_flag release_once;
         std::promise<void> start_promise;
         std::shared_future<void> barrier;
-        std::atomic<bool> is_terminated;
+        std::atomic<bool> is_terminated{false};
+        std::deque<std::thread> threads;
 
-        std::vector<std::thread> threads;
     public:
         ThreadBarrier();
         ~ThreadBarrier();
+
+        ThreadBarrier(const ThreadBarrier&) = delete;
+        ThreadBarrier& operator=(const ThreadBarrier&) = delete;
+        ThreadBarrier(ThreadBarrier&&) = delete;
+        ThreadBarrier& operator=(ThreadBarrier&&) = delete;
 
         template <typename TCallable>
         std::thread* enqueue(TCallable&& task) {
@@ -40,4 +47,4 @@ namespace multithreading::utilities::threads {
 
         void join();
     };
-} // namespace multithreading::utilities::threads
+}  // namespace multithreading::utilities::threads

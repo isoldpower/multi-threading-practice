@@ -14,7 +14,9 @@ Checks: >
   -misc-use-anonymous-namespace,
   -portability-template-virtual-member-function,
   -altera-id-dependent-backward-branch,
-  -boost-use-ranges
+  -boost-use-ranges,
+  -portability-avoid-pragma-once,
+  -llvm-header-guard
 WarningsAsErrors: >
   clang-diagnostic-*,
   clang-analyzer-*,
@@ -31,11 +33,14 @@ WarningsAsErrors: >
   -misc-use-anonymous-namespace,
   -portability-template-virtual-member-function,
   -altera-id-dependent-backward-branch,
-  -boost-use-ranges
-HeaderFilterRegex: '^(?!.*/build/).*'
-FormatStyle:     google
+  -boost-use-ranges,
+  -portability-avoid-pragma-once,
+  -llvm-header-guard
+HeaderFilterRegex: '.*'
+ExcludeHeaderFilterRegex: '.*/(build|cmake-build-[^/]*|_deps)/.*'
+FormatStyle:     file
 CheckOptions:
-  - key:             cert-dcl16-c.NewSuffixesa
+  - key:             cert-dcl16-c.NewSuffixes
     value:           'L;LL;LU;LLU'
   - key:             cert-oop54-cpp.WarnOnlyIfThisHasSuspiciousField
     value:           '0'
@@ -44,7 +49,9 @@ CheckOptions:
   - key:             cppcoreguidelines-non-private-member-variables-in-classes.IgnoreClassesWithAllMemberVariablesBeingPublic
     value:           '1'
   - key:             google-readability-braces-around-statements.ShortStatementLines
-    value:           '1'
+    value:           '0'
+  - key:             readability-braces-around-statements.ShortStatementLines
+    value:           '0'
   - key:             google-readability-function-size.StatementThreshold
     value:           '800'
   - key:             google-readability-namespace-comments.ShortNamespaceLines

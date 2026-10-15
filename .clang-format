@@ -1,7 +1,32 @@
 BasedOnStyle: Google
+
 AccessModifierOffset: -4
-TabWidth: 4
-IndentWidth: 4
-ContinuationIndentWidth: 8
 ColumnLimit: 100
-PointerAlignment: Right
+IndentWidth: 4
+TabWidth: 4
+
+NamespaceIndentation: All
+
+AllowShortFunctionsOnASingleLine: None
+AllowShortLambdasOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortCaseLabelsOnASingleLine: false
+
+AlignAfterOpenBracket: BlockIndent
+BinPackArguments: false
+BinPackParameters: false
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+BreakAfterOpenBracketLoop: true
+BreakBeforeCloseBracketLoop: true
+BreakAfterOpenBracketIf: true
+BreakBeforeCloseBracketIf: true
+BreakAfterOpenBracketSwitch: true
+BreakBeforeCloseBracketSwitch: true
+
+BreakConstructorInitializers: BeforeComma
+PackConstructorInitializers: Never
+
+PenaltyReturnTypeOnItsOwnLine: 10000

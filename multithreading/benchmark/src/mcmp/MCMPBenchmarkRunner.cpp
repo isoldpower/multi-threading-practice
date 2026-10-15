@@ -1,21 +1,19 @@
 #include "../../include/mcmp/MCMPBenchmarkRunner.h"
 
-#include <thread>
 #include <cmath>
+#include <thread>
 
 namespace multithreading::benchmark::mcmp {
 
     MCMPBenchmarkRunner::MCMPBenchmarkRunner(
         const std::shared_ptr<ProducerConsumerBenchmark>& benchmark
     )
-        : benchmark(benchmark)
-    {}
+        : benchmark(benchmark) {
+    }
 
-    void MCMPBenchmarkRunner::run_benchmark_with(
-        const BenchmarkMatrixItem& item
-    ) {
+    void MCMPBenchmarkRunner::run_benchmark_with(const BenchmarkMatrixItem& item) {
         const auto half_threads = static_cast<size_t>(std::floor(item.threads_count / 2));
-        std::vector<std::thread> threads {};
+        std::vector<std::thread> threads{};
         threads.reserve(item.threads_count);
 
         for (size_t i = 0; i < half_threads; ++i) {
@@ -35,4 +33,4 @@ namespace multithreading::benchmark::mcmp {
             }
         }
     }
-} // namespace multithreading::benchmark::mcmp
+}  // namespace multithreading::benchmark::mcmp

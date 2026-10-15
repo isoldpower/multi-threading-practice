@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "../../include/threads/CountThreadBarrier.h"
+
+#include <gtest/gtest.h>
 
 using multithreading::utilities::threads::CountThreadBarrier;
 
@@ -45,8 +45,10 @@ TEST(CountThreadBarrierTest, EnqueueReturnsValidThreadPointer) {
     constexpr size_t THREAD_COUNT = 2;
     CountThreadBarrier barrier(THREAD_COUNT);
 
-    const std::thread* thread_first = barrier.enqueue([](){});
-    const std::thread* thread_second = barrier.enqueue([](){});
+    const std::thread* thread_first = barrier.enqueue([]() {
+    });
+    const std::thread* thread_second = barrier.enqueue([]() {
+    });
 
     EXPECT_NE(thread_first, nullptr);
     EXPECT_NE(thread_second, nullptr);
@@ -115,8 +117,8 @@ TEST(CountThreadBarrierTest, ConcurrentEnqueuesAreSafe) {
         });
     }
 
-    for (auto& t : enqueuers) {
-        t.join();
+    for (auto& enqueuer : enqueuers) {
+        enqueuer.join();
     }
     barrier.join();
 

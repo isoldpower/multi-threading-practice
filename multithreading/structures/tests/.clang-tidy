@@ -1,0 +1,9 @@
+InheritParentConfig: true
+Checks: >
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -cppcoreguidelines-non-private-member-variables-in-classes,
+  -misc-non-private-member-variables-in-classes
+CheckOptions:
+  - key:   readability-function-cognitive-complexity.IgnoreMacros
+    value: true

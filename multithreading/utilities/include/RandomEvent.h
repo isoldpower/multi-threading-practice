@@ -2,7 +2,6 @@
 
 #include "./threads/RandomGenerator.h"
 
-
 namespace multithreading::utilities {
 
     template <typename TResult, typename TCallable, typename TCallable2>
@@ -11,4 +10,4 @@ namespace multithreading::utilities {
 
         return random_value > chance ? second() : first();
     };
-} // namespace multithreading::utilities
+}  // namespace multithreading::utilities

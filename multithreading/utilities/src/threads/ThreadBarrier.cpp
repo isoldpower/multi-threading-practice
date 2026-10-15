@@ -1,12 +1,10 @@
 #include "../../include/threads/ThreadBarrier.h"
 
-
 namespace multithreading::utilities::threads {
 
     ThreadBarrier::ThreadBarrier()
-        : barrier(start_promise.get_future().share())
-        , is_terminated(false)
-    {}
+        : barrier(start_promise.get_future().share()) {
+    }
 
     ThreadBarrier::~ThreadBarrier() {
         this->terminate();
@@ -17,13 +15,15 @@ namespace multithreading::utilities::threads {
     }
 
     void ThreadBarrier::kickstart() {
-        start_promise.set_value();
+        std::call_once(release_once, [this]() {
+            start_promise.set_value();
+        });
     }
 
     void ThreadBarrier::terminate() {
         is_terminated.store(true, std::memory_order_release);
 
-        std::call_once(start_once, [this]() {
+        std::call_once(release_once, [this]() {
             start_promise.set_value();
         });
 
@@ -38,4 +38,4 @@ namespace multithreading::utilities::threads {
         }
         threads.clear();
     }
-} // namespace multithreading::utilities::threads
+}  // namespace multithreading::utilities::threads

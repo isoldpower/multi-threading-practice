@@ -1,18 +1,32 @@
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "../../include/performance/EpochGuard.h"
 #include "../../include/threads/CountThreadBarrier.h"
 #include "../../include/threads/ThreadBarrier.h"
 
-template <typename T>
-struct TrackDeleted {
-public:
-    T* flag;
+namespace {
+    /** @brief Raises the flag it points at when deleted, so tests can observe reclamation. */
+    template <typename T>
+    struct TrackDeleted {
+        T* flag;
 
-    ~TrackDeleted() {
-        *flag = true;
-    }
-};
+        explicit TrackDeleted(T* flag)
+            : flag(flag) {
+        }
+
+        ~TrackDeleted() {
+            *flag = true;
+        }
+
+        TrackDeleted(const TrackDeleted&) = delete;
+        TrackDeleted& operator=(const TrackDeleted&) = delete;
+        TrackDeleted(TrackDeleted&&) = delete;
+        TrackDeleted& operator=(TrackDeleted&&) = delete;
+    };
+}  // namespace
 
 TEST(EpochReclamationTest, EngageAndFreeDoNotCrash) {
     multithreading::utilities::performance::EpochReclamation<int> reclamation;
@@ -33,12 +47,11 @@ TEST(EpochReclamationTest, RetiredNodeNotDeletedWhileGuardActive) {
     const multithreading::utilities::performance::EpochReclamation<int> reclamation;
     bool deleted = false;
 
-    multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>> tracked_reclamation;
-    auto* node = new TrackDeleted{&deleted};
-
+    multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>>
+        tracked_reclamation;
     {
         const multithreading::utilities::performance::EpochGuard guard(&tracked_reclamation);
-        tracked_reclamation.retire_reference(node);
+        tracked_reclamation.retire_reference(new TrackDeleted{&deleted});
         EXPECT_FALSE(deleted);
     }
 }
@@ -53,14 +66,17 @@ TEST(EpochReclamationTest, RetiredNodeDeletedAfterEpochAdvances) {
     for (size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 3; ++i) {
         const multithreading::utilities::performance::EpochGuard guard(&tracked_reclamation);
         if (i < RETIRE_LIST_SIZE) {
-            tracked_reclamation.retire_reference(new TrackDeleted{ &deleted_list.at(i) });
+            tracked_reclamation.retire_reference(new TrackDeleted{&deleted_list.at(i)});
         }
     }
 
-    const bool is_all_cleared = std::all_of(
-        deleted_list.begin(),
-        deleted_list.end(),
-        [](bool deleted){ return deleted == 1; });
+    const bool is_all_cleared = std::ranges::all_of(
+        deleted_list,
+        [](const int deleted) {
+            return deleted == 1;
+        },
+        std::identity{}
+    );
     EXPECT_TRUE(is_all_cleared);
 }
 
@@ -77,14 +93,18 @@ TEST(EpochReclamationTest, MultipleThreadsGetDistinctSlots) {
     for (size_t i = 0; i < THREAD_COUNT; ++i) {
         threads.emplace_back([&]() {
             const multithreading::utilities::performance::EpochGuard guard(&reclamation);
-            const size_t current = active_simultaneously.fetch_add(1, std::memory_order_release) + 1;
+            const size_t current =
+                active_simultaneously.fetch_add(1, std::memory_order_release) + 1;
             size_t prev = peak.load(std::memory_order_acquire);
-            while (current > prev && !peak.compare_exchange_weak(
-                prev,
-                current,
-                std::memory_order_release,
-                std::memory_order_acquire
-            )) {}
+            while (
+                current > prev && !peak.compare_exchange_weak(
+                                      prev,
+                                      current,
+                                      std::memory_order_release,
+                                      std::memory_order_acquire
+                                  )
+            ) {
+            }
 
             barrier.enqueue_and_wait();
             active_simultaneously.fetch_sub(1, std::memory_order_release);
@@ -160,16 +180,22 @@ TEST(EpochReclamationTest, ConcurrentRetireAndReclaimNoDoubleFree) {
 }
 
 TEST(EpochReclamationTest, EpochDoesNotAdvanceWhileThreadActive) {
-    multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>> tracked_reclamation;
+    multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>>
+        tracked_reclamation;
 
     bool deleted = false;
     {
         const multithreading::utilities::performance::EpochGuard guard(&tracked_reclamation);
-        tracked_reclamation.retire_reference(new TrackDeleted{ &deleted });
+        tracked_reclamation.retire_reference(new TrackDeleted{&deleted});
 
         std::thread background([&]() {
-            for (size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 3; ++i) {
-                const multithreading::utilities::performance::EpochGuard bg_guard(&tracked_reclamation);
+            for (
+                size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 3;
+                ++i
+            ) {
+                const multithreading::utilities::performance::EpochGuard bg_guard(
+                    &tracked_reclamation
+                );
             }
         });
         background.join();
@@ -178,7 +204,9 @@ TEST(EpochReclamationTest, EpochDoesNotAdvanceWhileThreadActive) {
     }
 
     std::thread cleanup([&]() {
-        for (size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 3; ++i) {
+        for (
+            size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 3; ++i
+        ) {
             const multithreading::utilities::performance::EpochGuard bg_guard(&tracked_reclamation);
         }
     });

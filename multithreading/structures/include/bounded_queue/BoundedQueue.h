@@ -3,7 +3,6 @@
 #include <future>
 #include <optional>
 
-
 namespace multithreading::structures::bounded_queue {
 
     template <typename T>
@@ -31,4 +30,4 @@ namespace multithreading::structures::bounded_queue {
         [[nodiscard]] virtual bool is_empty(bool isPrecise) const = 0;
         [[nodiscard]] virtual bool is_full(bool isPrecise) const = 0;
     };
-} // namespace multithreading::structures::bounded_queue
+}  // namespace multithreading::structures::bounded_queue

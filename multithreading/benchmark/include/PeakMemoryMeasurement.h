@@ -5,18 +5,16 @@
 
 #include "./BenchmarkMeasurement.h"
 
-
 namespace multithreading::benchmark {
 
     class PeakMemoryMeasurement final : public BenchmarkMeasurement<double> {
     private:
-        double baseline;
+        double baseline{0};
         std::vector<double> snapshots;
 
-        double recorded_result;
-    public:
-        ~PeakMemoryMeasurement() override = default;
+        double recorded_result{0};
 
+    public:
         explicit PeakMemoryMeasurement(const BenchmarkMeasurementTemplate& measurement);
 
         void start() override;
@@ -27,4 +25,4 @@ namespace multithreading::benchmark {
 
         std::optional<BenchmarkMeasurementResult<double>> get_result() override;
     };
-} // namespace multithreading::benchmark
+}  // namespace multithreading::benchmark

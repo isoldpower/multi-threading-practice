@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gtest/gtest.h>
+
 #include <type_traits>
 
 namespace multithreading::utilities::tests {
@@ -8,12 +9,12 @@ namespace multithreading::utilities::tests {
     template <typename Queue>
     struct QueueValueType;
 
-    template <template<typename> class Queue, typename T>
+    template <template <typename> class Queue, typename T>
     struct QueueValueType<Queue<T>> {
         using type = T;
     };
 
-    template <template<typename, typename...> class Queue, typename T, typename... Rest>
+    template <template <typename, typename...> class Queue, typename T, typename... Rest>
     struct QueueValueType<Queue<T, Rest...>> {
         using type = T;
     };
@@ -21,7 +22,7 @@ namespace multithreading::utilities::tests {
     template <typename T>
     class AmorphicTest : public ::testing::Test {
     protected:
-        using ValueType = typename QueueValueType<T>::type;
+        using ValueType = QueueValueType<T>::type;
 
         ValueType make_value(int val) {
             if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
@@ -47,12 +48,21 @@ namespace multithreading::utilities::tests {
             return this->are_equal_raw(lhs, value.value());
         }
 
+        bool is_present(const ValueType& value) {
+            if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+                return value != nullptr;
+            } else {
+                return true;
+            }
+        }
+
         int to_raw(const ValueType& value) {
             if constexpr (std::is_same_v<ValueType, std::unique_ptr<int>>) {
+                // NOLINTNEXTLINE(clang-analyzer-cplusplus.Move)
                 return *value;
             } else {
                 return value;
             }
         }
     };
-} // namespace multithreading::utilities::tests
+}  // namespace multithreading::utilities::tests

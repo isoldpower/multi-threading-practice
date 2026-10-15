@@ -2,60 +2,35 @@
 
 #include <multithreading/utilities/include/performance/AlignedField.h>
 
+#include <atomic>
+#include <bit>
+#include <cstddef>
 #include <future>
+#include <iterator>
 #include <optional>
+#include <semaphore>
+#include <utility>
+#include <vector>
 
 #include "./BoundedQueue.h"
 
 namespace multithreading::structures::bounded_queue {
 
-    template <typename T>
-    struct SlotValue {
-    private:
-        // The purpose is to reserve the memory of desired size and with
-        // desired align that type is using, but leave the possibility to not always store the value.
-        // Modern C++ versions support the built-in implementations which gives same functionality.
-        std::aligned_storage_t<sizeof(T), alignof(T)> storage;
-
-        T* get_pointer() {
-            return reinterpret_cast<T*>(&storage);
-        }
-
-        const T* get_pointer() const {
-            return reinterpret_cast<const T*>(&storage);
-        }
-    public:
-        void emplace(const T& value)
-        requires std::is_copy_constructible_v<T> {
-            new (get_pointer()) T(value);
-        }
-
-        void emplace(T&& value) {
-            new (get_pointer()) T(std::move(value));
-        }
-
-        void erase() { (*get_pointer()).~T(); }
-
-        T* get() { return get_pointer(); }
-
-        const T* get() const { return get_pointer(); }
-
-        T take() {
-            T result = std::move(*get_pointer());
-            erase();
-            return result;
-        }
-    };
-
     // Sequence has 2 states:
     // 1) 'full' (lap_number * capacity) + 1: (i.e. capacity = 10, then 1, 11, 21, 31... indicate
-    // 'full') 2) 'empty' (lap_number * capacity): (i.e. capacity = 10, then 0, 10, 20, 30... indicate
-    // 'empty')
+    // 'full')
+    // 2) 'empty' (lap_number * capacity): (i.e. capacity = 10, then 0, 10, 20, 30...
+    // indicate 'empty')
+    // Aligning a slot to its size rounded up to a power of two means no slot of a cache line or
+    // less ever straddles two lines.
     template <typename T>
-    struct CircularSlot {
-    public:
-        std::atomic<size_t> sequence;
-        SlotValue<T> value;
+    constexpr size_t CIRCULAR_SLOT_ALIGNMENT =
+        std::bit_ceil(sizeof(std::atomic<size_t>) + sizeof(std::optional<T>));
+
+    template <typename T>
+    struct alignas(CIRCULAR_SLOT_ALIGNMENT<T>) CircularSlot {
+        std::atomic<size_t> sequence{0};
+        std::optional<T> value;
     };
 
     template <typename T>
@@ -63,10 +38,21 @@ namespace multithreading::structures::bounded_queue {
     private:
         const size_t capacity;
         std::vector<CircularSlot<T>> data;
-
         std::counting_semaphore<> items_available;
-        alignas(64) utilities::performance::AlignedField<std::atomic<size_t>> enqueue_pos;
-        alignas(64) std::atomic<size_t> dequeue_pos;
+
+        // Producers and consumers each spin on their own position, so keep the two on separate
+        // cache lines.
+        utilities::performance::AlignedField<std::atomic<size_t>> enqueue_pos;
+        utilities::performance::AlignedField<std::atomic<size_t>> dequeue_pos;
+
+        // Positions grow without bound and wrap onto the ring here, so the index is always valid.
+        CircularSlot<T>& slot_at(const size_t position) noexcept {
+            return *std::next(data.begin(), static_cast<ptrdiff_t>(position % capacity));
+        }
+
+        const CircularSlot<T>& slot_at(const size_t position) const noexcept {
+            return *std::next(data.begin(), static_cast<ptrdiff_t>(position % capacity));
+        }
 
     public:
         explicit LockFreeBoundedQueueImpl(const size_t capacity)
@@ -74,10 +60,9 @@ namespace multithreading::structures::bounded_queue {
             , data(capacity)
             , items_available(0)
             , enqueue_pos(0)
-            , dequeue_pos(0)
-        {
+            , dequeue_pos(0) {
             for (size_t i = 0; i < capacity; ++i) {
-                data[i].sequence.store(i, std::memory_order_relaxed);
+                slot_at(i).sequence.store(i, std::memory_order_relaxed);
             }
         }
 
@@ -86,16 +71,13 @@ namespace multithreading::structures::bounded_queue {
         LockFreeBoundedQueueImpl& operator=(const LockFreeBoundedQueueImpl&) = delete;
         LockFreeBoundedQueueImpl& operator=(LockFreeBoundedQueueImpl&&) = delete;
 
-        ~LockFreeBoundedQueueImpl() {
-            while (try_dequeue().has_value()) {
-            }
-        };
+        ~LockFreeBoundedQueueImpl() = default;
 
         std::optional<T> try_dequeue() {
             while (true) {
-                size_t position = dequeue_pos.load(std::memory_order_relaxed);
-                const size_t lap_position = position % capacity;
-                const size_t sequence = data[lap_position].sequence.load(std::memory_order_acquire);
+                size_t position = dequeue_pos.get().load(std::memory_order_relaxed);
+                CircularSlot<T>& slot = slot_at(position);
+                const size_t sequence = slot.sequence.load(std::memory_order_acquire);
 
                 if (sequence == position) {
                     // Sequence indicates 'empty' state. Probably means that our queue is empty.
@@ -109,15 +91,15 @@ namespace multithreading::structures::bounded_queue {
 
                 // CAS to ensure that dequeue_pos didn't update while we were proceeding. This way
                 // we will either claim the position or identify race condition loss and retry.
-                if (dequeue_pos.compare_exchange_weak(
-                    position,
-                    position + 1,
-                    std::memory_order_acquire,
-                    std::memory_order_relaxed)
-                ) {
+                if (dequeue_pos.get().compare_exchange_weak(
+                        position,
+                        position + 1,
+                        std::memory_order_acquire,
+                        std::memory_order_relaxed
+                    )) {
                     // Position successfully claimed, proceed and return the value.
-                    T result = data[lap_position].value.take();
-                    data[lap_position].sequence.store(position + capacity, std::memory_order_release);
+                    std::optional<T> result = std::exchange(slot.value, std::nullopt);
+                    slot.sequence.store(position + capacity, std::memory_order_release);
                     return result;
                 }
             }
@@ -155,52 +137,52 @@ namespace multithreading::structures::bounded_queue {
 
         bool try_enqueue(T&& value) {
             while (true) {
-                size_t position = enqueue_pos->load(std::memory_order_relaxed);
-                const size_t lap_position = position % capacity;
-                const size_t sequence = data[lap_position].sequence.load(std::memory_order_acquire);
+                size_t position = enqueue_pos.get().load(std::memory_order_relaxed);
+                CircularSlot<T>& slot = slot_at(position);
+                const size_t sequence = slot.sequence.load(std::memory_order_acquire);
 
                 if (sequence < position) {
                     // The slot we are trying to address is still on the previous lap,
                     // which means that it is full and have not been read. It means that the
                     // queue is full
-                    if (enqueue_pos->load(std::memory_order_acquire) == position) {
+                    if (enqueue_pos.get().load(std::memory_order_acquire) == position) {
                         // Ensure atomic state didn't change and if it didn't return false.
                         return false;
                     }
                     // Atomic state changed, probably we've got new space to enqueue.
                     // Retry in next iteration.
                     continue;
-                } else if (sequence > position) {
+                }
+                if (sequence > position) {
                     // We lost racing condition and someone has claimed our slot before we did.
                     // Continue to get fresh enqueue position in next iteration.
                     continue;
-                } else {
-                    // Slot is ready and in the correct 'Empty' state. Proceed with CAS operation
-                    // to ensure position didn't change since the beginning of the operation.
-                    if (enqueue_pos->compare_exchange_weak(
+                }
+
+                // Slot is ready and in the correct 'Empty' state. Proceed with CAS operation
+                // to ensure position didn't change since the beginning of the operation.
+                if (enqueue_pos.get().compare_exchange_weak(
                         position,
                         position + 1,
                         std::memory_order_relaxed,
                         std::memory_order_relaxed
                     )) {
-                        data[lap_position].value.emplace(std::move(value));
-                        data[lap_position].sequence.store(position + 1, std::memory_order_release);
-                        items_available.release(1);
-                        return true;
-                    }
+                    slot.value.emplace(std::move(value));
+                    slot.sequence.store(position + 1, std::memory_order_release);
+                    items_available.release(1);
+                    return true;
                 }
             }
         }
 
         bool is_empty() const {
             while (true) {
-                const size_t position = dequeue_pos.load(std::memory_order_relaxed);
-                const size_t lap_position = position % capacity;
-                const size_t sequence = data[lap_position].sequence.load(std::memory_order_acquire);
+                const size_t position = dequeue_pos.get().load(std::memory_order_relaxed);
+                const size_t sequence = slot_at(position).sequence.load(std::memory_order_acquire);
 
-                if (position == dequeue_pos.load(std::memory_order_acquire)) {
-                    // If the sequence equals to position, it means that Slot state is 'Empty', which
-                    // means that the queue is empty.
+                if (position == dequeue_pos.get().load(std::memory_order_acquire)) {
+                    // If the sequence equals to position, it means that Slot state is 'Empty',
+                    // which means that the queue is empty.
                     return sequence == position;
                 }
             }
@@ -208,11 +190,10 @@ namespace multithreading::structures::bounded_queue {
 
         bool is_full() const {
             while (true) {
-                const size_t position = enqueue_pos->load(std::memory_order_relaxed);
-                const size_t lap_position = position % capacity;
-                const size_t sequence = data[lap_position].sequence.load(std::memory_order_acquire);
+                const size_t position = enqueue_pos.get().load(std::memory_order_relaxed);
+                const size_t sequence = slot_at(position).sequence.load(std::memory_order_acquire);
 
-                if (position == enqueue_pos->load(std::memory_order_acquire)) {
+                if (position == enqueue_pos.get().load(std::memory_order_acquire)) {
                     // If the sequence is less than position, it means that our sequence is
                     // still on previous lap and wasn't read. Indicates that queue is full.
                     return sequence < position;
@@ -229,8 +210,8 @@ namespace multithreading::structures::bounded_queue {
     public:
         explicit LockFreeBoundedQueue(const size_t capacity)
             : BoundedQueue<T>()
-            , impl(capacity)
-        {}
+            , impl(capacity) {
+        }
 
         ~LockFreeBoundedQueue() override = default;
 
@@ -239,7 +220,9 @@ namespace multithreading::structures::bounded_queue {
         LockFreeBoundedQueue& operator=(const LockFreeBoundedQueue&) = delete;
         LockFreeBoundedQueue& operator=(LockFreeBoundedQueue&&) = delete;
 
-        std::optional<T> try_dequeue() override { return impl.try_dequeue(); }
+        std::optional<T> try_dequeue() override {
+            return impl.try_dequeue();
+        }
 
         std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) override {
             return impl.wait_dequeue(timeout);
@@ -248,19 +231,21 @@ namespace multithreading::structures::bounded_queue {
         std::future<std::optional<T>> wait_dequeue_async(
             const std::chrono::steady_clock::duration& timeout
         ) override {
-            return std::async(
-                std::launch::async,
-                [this, timeout]() -> auto {
-                    return this->impl.wait_dequeue(timeout);
-                });
+            return std::async(std::launch::async, [this, timeout]() -> auto {
+                return this->impl.wait_dequeue(timeout);
+            });
         }
 
         bool try_enqueue(T&& value) override {
             return impl.try_enqueue(std::move(value));
         }
 
-        [[nodiscard]] bool is_empty(bool) const override { return impl.is_empty(); }
+        [[nodiscard]] bool is_empty(bool /*isPrecise*/) const override {
+            return impl.is_empty();
+        }
 
-        [[nodiscard]] bool is_full(bool) const override { return impl.is_full(); }
+        [[nodiscard]] bool is_full(bool /*isPrecise*/) const override {
+            return impl.is_full();
+        }
     };
 }  // namespace multithreading::structures::bounded_queue

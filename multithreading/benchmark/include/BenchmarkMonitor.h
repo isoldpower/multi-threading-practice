@@ -2,18 +2,17 @@
 
 #include <atomic>
 #include <iostream>
+#include <mutex>
 #include <thread>
 #include <tuple>
-#include <mutex>
 
 #include "./BenchmarkMeasurement.h"
-
 
 namespace multithreading::benchmark {
 
     constexpr size_t DEFAULT_HEARTBEAT_RATE = 10;
 
-    template <typename ...TMeasures>
+    template <typename... TMeasures>
     class BenchmarkMonitor {
     private:
         std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements;
@@ -26,15 +25,19 @@ namespace multithreading::benchmark {
         void monitor_benchmarks() {
             while (benchmark_running.load(std::memory_order_acquire)) {
                 {
-                    std::scoped_lock lock(measurements_mutex);
-                    std::apply([&](auto&... measurements) {
-                        (measurements->snapshot(), ...);
-                    }, measurements);
+                    const std::scoped_lock lock(measurements_mutex);
+                    std::apply(
+                        [&](auto&... measurements) {
+                            (measurements->snapshot(), ...);
+                        },
+                        measurements
+                    );
                 }
 
                 std::this_thread::sleep_for(heartbeat);
             }
         }
+
     public:
         BenchmarkMonitor(
             std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements,
@@ -42,16 +45,16 @@ namespace multithreading::benchmark {
         )
             : measurements(std::move(measurements))
             , heartbeat(std::chrono::milliseconds(heartbeat))
-            , benchmark_running(false)
-        {}
+            , benchmark_running(false) {
+        }
 
         explicit BenchmarkMonitor(
             std::tuple<std::unique_ptr<BenchmarkMeasurement<TMeasures>>...> measurements
         )
             : measurements(std::move(measurements))
             , heartbeat(std::chrono::milliseconds(DEFAULT_HEARTBEAT_RATE))
-            , benchmark_running(false)
-        {}
+            , benchmark_running(false) {
+        }
 
         bool start_monitoring() {
             bool isRunning = benchmark_running.load(std::memory_order_acquire);
@@ -60,21 +63,25 @@ namespace multithreading::benchmark {
                 std::cerr << "Could not run BenchmarkMonitor::startMonitoring() as the process "
                              "is already running\n";
                 return false;
-            } else if (!benchmark_running.compare_exchange_strong(
-                isRunning,
-                true,
-                std::memory_order_release,
-                std::memory_order_acquire
+            }
+            if (!benchmark_running.compare_exchange_strong(
+                    isRunning,
+                    true,
+                    std::memory_order_release,
+                    std::memory_order_acquire
             )) {
                 std::cerr << "Lost race condition in monitoring process from BenchmarkMonitor\n";
                 return false;
             }
 
             {
-                std::scoped_lock lock(measurements_mutex);
-                std::apply([&](auto&... measurements) {
-                   (measurements->start(), ...);
-               }, measurements);
+                const std::scoped_lock lock(measurements_mutex);
+                std::apply(
+                    [&](auto&... measurements) {
+                        (measurements->start(), ...);
+                    },
+                    measurements
+                );
             }
 
             heartbeat_thread = std::thread(&BenchmarkMonitor::monitor_benchmarks, this);
@@ -88,23 +95,29 @@ namespace multithreading::benchmark {
                              "is NOT running or was already stopped\n";
 
                 return false;
-            } else if (!benchmark_running.compare_exchange_strong(
-                isRunning,
-                false,
-                std::memory_order_release,
-                std::memory_order_acquire
+            }
+
+            if (!benchmark_running.compare_exchange_strong(
+                    isRunning,
+                    false,
+                    std::memory_order_release,
+                    std::memory_order_acquire
             )) {
-                std::cerr << "Lost race condition in stopping monitoring process from BenchmarkMonitor\n";
+                std::cerr
+                    << "Lost race condition in stopping monitoring process from BenchmarkMonitor\n";
 
                 return false;
             }
 
             heartbeat_thread.join();
             {
-                std::scoped_lock lock(measurements_mutex);
-                std::apply([&](auto&... measurements) {
-                    (measurements->stop(), ...);
-                }, measurements);
+                const std::scoped_lock lock(measurements_mutex);
+                std::apply(
+                    [&](auto&... measurements) {
+                        (measurements->stop(), ...);
+                    },
+                    measurements
+                );
             }
 
             return true;
@@ -120,15 +133,18 @@ namespace multithreading::benchmark {
             }
 
             std::tuple<BenchmarkMeasurementResult<TMeasures>...> results = [&]() {
-                std::scoped_lock lock(measurements_mutex);
-                return std::apply([](auto&... measurement) {
-                    return std::tuple<BenchmarkMeasurementResult<TMeasures>...>{
-                        measurement->get_result().value()...
-                    };
-                }, measurements);
+                const std::scoped_lock lock(measurements_mutex);
+                return std::apply(
+                    [](auto&... measurement) {
+                        return std::tuple<BenchmarkMeasurementResult<TMeasures>...>{
+                            measurement->get_result().value()...
+                        };
+                    },
+                    measurements
+                );
             }();
 
             return results;
         }
     };
-} // namespace multithreading::benchmark
+}  // namespace multithreading::benchmark

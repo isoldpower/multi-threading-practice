@@ -7,29 +7,29 @@
 #include "../../include/unbounded_queue/FGLockUnboundedQueue.h"
 #include "../../include/unbounded_queue/LockFreeUnboundedQueue.h"
 
-
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 
-template <typename T>
-class UnboundedQueueTest : public multithreading::utilities::tests::AmorphicTest<T> {
-protected:
-    std::unique_ptr<T> queue;
+namespace {
+    template <typename T>
+    class UnboundedQueueTest : public multithreading::utilities::tests::AmorphicTest<T> {
+    protected:
+        std::unique_ptr<T> queue;
 
-    void SetUp() override {
-        queue = std::make_unique<T>();
-    }
+        void SetUp() override {
+            queue = std::make_unique<T>();
+        }
 
-    void TearDown() override {
-        queue = nullptr;
-    }
-};
+        void TearDown() override {
+            queue = nullptr;
+        }
+    };
+}  // namespace
 
 using UnboundedQueueImplementations = ::testing::Types<
     multithreading::structures::unbounded_queue::FGLockUnboundedQueue<int>,
     multithreading::structures::unbounded_queue::FGLockUnboundedQueue<std::unique_ptr<int>>,
     multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<int>,
-    multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<std::unique_ptr<int>>
->;
+    multithreading::structures::unbounded_queue::LockFreeUnboundedQueue<std::unique_ptr<int>>>;
 TYPED_TEST_SUITE(UnboundedQueueTest, UnboundedQueueImplementations);
 
 TYPED_TEST(UnboundedQueueTest, StartsEmpty) {
@@ -111,7 +111,8 @@ TYPED_TEST(UnboundedQueueTest, AsyncWaitDequeueTriggers) {
     using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
-    std::future<std::optional<ValueType>> dequeue_future = this->queue->wait_dequeue_async(TEST_DURATION);
+    std::future<std::optional<ValueType>> dequeue_future =
+        this->queue->wait_dequeue_async(TEST_DURATION);
     std::this_thread::sleep_for(TEST_DURATION / 2);
     auto value = this->make_value(0);
     this->queue->enqueue(std::move(value));
@@ -167,11 +168,11 @@ TYPED_TEST(UnboundedQueueTest, HighContentionEnqueueResolution) {
             this->queue->enqueue(std::move(value));
 
             const std::scoped_lock guard(occurrences_mutex);
-            if (!elements_occurrences.contains(i)) {
-                elements_occurrences.emplace(i, 1);
+            if (!elements_occurrences.contains(static_cast<int>(i))) {
+                elements_occurrences.emplace(static_cast<int>(i), 1);
             } else {
-                const size_t occurrences = elements_occurrences.at(i);
-                elements_occurrences.at(i) = occurrences + 1;
+                const size_t occurrences = elements_occurrences.at(static_cast<int>(i));
+                elements_occurrences.at(static_cast<int>(i)) = occurrences + 1;
             }
         });
     }
@@ -217,7 +218,8 @@ TYPED_TEST(UnboundedQueueTest, HighContentionDequeueResolution) {
                 const int raw_value = this->to_raw(std::move(value));
                 const std::scoped_lock guard(occurrences_mutex);
 
-                if (elements_occurrences.contains(raw_value) && elements_occurrences.at(raw_value) == 1) {
+                if (elements_occurrences.contains(raw_value) &&
+                    elements_occurrences.at(raw_value) == 1) {
                     elements_occurrences.erase(raw_value);
                 }
             }

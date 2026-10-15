@@ -15,27 +15,27 @@
 
 constexpr size_t DEFAULT_QUEUE_SIZE = 10;
 
+namespace {
+    template <typename T>
+    class BoundedQueueTest : public multithreading::utilities::tests::AmorphicTest<T> {
+    protected:
+        std::unique_ptr<T> queue;
 
-template <typename T>
-class BoundedQueueTest : public multithreading::utilities::tests::AmorphicTest<T> {
-protected:
-    std::unique_ptr<T> queue;
+        void SetUp() override {
+            queue = std::make_unique<T>(DEFAULT_QUEUE_SIZE);
+        }
 
-    void SetUp() override {
-        queue = std::make_unique<T>(DEFAULT_QUEUE_SIZE);
-    }
-
-    void TearDown() override {
-        queue = nullptr;
-    }
-};
+        void TearDown() override {
+            queue = nullptr;
+        }
+    };
+}  // namespace
 
 using BoundedQueueImplementations = ::testing::Types<
     multithreading::structures::bounded_queue::FGLockBoundedQueue<int>,
     multithreading::structures::bounded_queue::FGLockBoundedQueue<std::unique_ptr<int>>,
     multithreading::structures::bounded_queue::LockFreeBoundedQueue<int>,
-    multithreading::structures::bounded_queue::LockFreeBoundedQueue<std::unique_ptr<int>>
->;
+    multithreading::structures::bounded_queue::LockFreeBoundedQueue<std::unique_ptr<int>>>;
 TYPED_TEST_SUITE(BoundedQueueTest, BoundedQueueImplementations);
 
 TYPED_TEST(BoundedQueueTest, StartsEmpty) {
@@ -64,6 +64,21 @@ TYPED_TEST(BoundedQueueTest, SizeReflectsEnqueue) {
 
     EXPECT_TRUE(this->queue->try_enqueue(std::move(value)));
     EXPECT_FALSE(this->queue->is_empty(false));
+}
+
+TYPED_TEST(BoundedQueueTest, FailedEnqueueLeavesValueIntact) {
+    constexpr int REJECTED_VALUE = 42;
+    for (size_t i = 0; i < DEFAULT_QUEUE_SIZE; ++i) {
+        EXPECT_TRUE(this->queue->try_enqueue(this->make_value(static_cast<int>(i))));
+    }
+
+    auto value = this->make_value(REJECTED_VALUE);
+    EXPECT_FALSE(this->queue->try_enqueue(std::move(value)));
+    // A rejected enqueue must hand the value back untouched; that contract is under test here.
+    // NOLINTBEGIN(bugprone-use-after-move,hicpp-invalid-access-moved)
+    ASSERT_TRUE(this->is_present(value));
+    EXPECT_EQ(this->to_raw(value), REJECTED_VALUE);
+    // NOLINTEND(bugprone-use-after-move,hicpp-invalid-access-moved)
 }
 
 TYPED_TEST(BoundedQueueTest, FilledQueueIsFull) {
@@ -135,7 +150,7 @@ TYPED_TEST(BoundedQueueTest, FreeAndRefill) {
 
     auto value = this->make_value(0);
     const std::optional<ValueType> dequeued_value = this->queue->try_dequeue();
-    EXPECT_TRUE(this->are_equal(std::move(dequeued_value.value()), std::move(value)));
+    EXPECT_TRUE(this->are_equal(value, dequeued_value));
 
     value = this->make_value(DEFAULT_QUEUE_SIZE);
     EXPECT_TRUE(this->queue->try_enqueue(std::move(value)));
@@ -153,7 +168,8 @@ TYPED_TEST(BoundedQueueTest, AsyncWaitDequeueTriggers) {
     using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr std::chrono::duration TEST_DURATION = std::chrono::seconds(1);
 
-    std::future<std::optional<ValueType>> dequeue_future = this->queue->wait_dequeue_async(TEST_DURATION);
+    std::future<std::optional<ValueType>> dequeue_future =
+        this->queue->wait_dequeue_async(TEST_DURATION);
     std::this_thread::sleep_for(TEST_DURATION / 2);
 
     auto value = this->make_value(0);
@@ -210,11 +226,11 @@ TYPED_TEST(BoundedQueueTest, HighContentionEnqueueResolution) {
 
             if (this->queue->try_enqueue(std::move(value))) {
                 const std::scoped_lock guard(occurrences_mutex);
-                if (!elements_occurrences.contains(i)) {
-                    elements_occurrences.emplace(i, 1);
+                if (!elements_occurrences.contains(static_cast<int>(i))) {
+                    elements_occurrences.emplace(static_cast<int>(i), 1);
                 } else {
-                    const size_t occurrences = elements_occurrences.at(i);
-                    elements_occurrences.at(i) = occurrences + 1;
+                    const size_t occurrences = elements_occurrences.at(static_cast<int>(i));
+                    elements_occurrences.at(static_cast<int>(i)) = occurrences + 1;
                 }
             }
         });
@@ -261,7 +277,8 @@ TYPED_TEST(BoundedQueueTest, HighContentionDequeueResolution) {
                 const int raw_value = this->to_raw(std::move(value));
                 const std::scoped_lock guard(occurrences_mutex);
 
-                if (elements_occurrences.contains(raw_value) && elements_occurrences.at(raw_value) == 1) {
+                if (elements_occurrences.contains(raw_value) &&
+                    elements_occurrences.at(raw_value) == 1) {
                     elements_occurrences.erase(raw_value);
                 }
             }
@@ -310,7 +327,6 @@ TYPED_TEST(BoundedQueueTest, HighContentionMCMPResolution) {
 }
 
 TYPED_TEST(BoundedQueueTest, SevereContentionMCMPResolution) {
-    using ValueType = multithreading::utilities::tests::QueueValueType<TypeParam>::type;
     constexpr size_t LARGE_QUEUE_SIZE = DEFAULT_QUEUE_SIZE * 10;
     constexpr size_t THREADS_COUNT = 8;
     auto large_queue = std::make_unique<TypeParam>(LARGE_QUEUE_SIZE);
@@ -323,6 +339,8 @@ TYPED_TEST(BoundedQueueTest, SevereContentionMCMPResolution) {
         barrier.enqueue([this, &large_queue, i, &enqueue_count]() {
             for (size_t j = 0; j < LARGE_QUEUE_SIZE; ++j) {
                 auto value = this->make_value(i);
+                // A rejected enqueue leaves the value untouched, so retrying with it is safe.
+                // NOLINTNEXTLINE(bugprone-use-after-move,hicpp-invalid-access-moved)
                 while (!large_queue->try_enqueue(std::move(value))) {
                     std::this_thread::yield();
                 }

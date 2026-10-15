@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "../../include/threads/ThreadBarrier.h"
+
+#include <gtest/gtest.h>
 
 using multithreading::utilities::threads::ThreadBarrier;
 
@@ -40,8 +40,10 @@ TEST(ThreadBarrierTest, AllThreadsExecuteAfterKickstart) {
 TEST(ThreadBarrierTest, EnqueueReturnsValidDistinctPointers) {
     ThreadBarrier barrier;
 
-    const std::thread* thread_first = barrier.enqueue([](){});
-    const std::thread* thread_second = barrier.enqueue([](){});
+    const std::thread* thread_first = barrier.enqueue([]() {
+    });
+    const std::thread* thread_second = barrier.enqueue([]() {
+    });
 
     EXPECT_NE(thread_first, nullptr);
     EXPECT_NE(thread_second, nullptr);
@@ -99,11 +101,15 @@ TEST(ThreadBarrierTest, TasksExecuteConcurrentlyAfterKickstart) {
         barrier.enqueue([&]() {
             const size_t current = active.fetch_add(1, std::memory_order_release) + 1;
             size_t prev = peak.load(std::memory_order_acquire);
-            while (current > prev && !peak.compare_exchange_weak(
-                prev, current,
-                std::memory_order_release,
-                std::memory_order_acquire
-            )) {}
+            while (
+                current > prev &&
+                !peak.compare_exchange_weak(
+                  prev,
+                  current,
+                  std::memory_order_release,
+                  std::memory_order_acquire
+                )
+            ) {}
 
             {
                 std::unique_lock lock(sync_mutex);
@@ -146,7 +152,8 @@ TEST(ThreadBarrierTest, EmptyTaskDoesNotCrash) {
     ThreadBarrier barrier;
 
     for (size_t i = 0; i < 4; ++i) {
-        barrier.enqueue([](){});
+        barrier.enqueue([]() {
+        });
     }
 
     barrier.kickstart();

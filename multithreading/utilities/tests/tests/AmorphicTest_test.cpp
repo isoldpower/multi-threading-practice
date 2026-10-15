@@ -1,14 +1,14 @@
-#include <gtest/gtest.h>
-#include <vector>
-
 #include "../../include/tests/AmorphicTest.h"
+
+#include <gtest/gtest.h>
+
+#include <memory>
+#include <optional>
+#include <vector>
 
 using multithreading::utilities::tests::AmorphicTest;
 
-using AmorphicTestTypes = ::testing::Types<
-    std::vector<int>,
-    std::vector<std::unique_ptr<int>>
->;
+using AmorphicTestTypes = ::testing::Types<std::vector<int>, std::vector<std::unique_ptr<int>>>;
 
 TYPED_TEST_SUITE(AmorphicTest, AmorphicTestTypes);
 
@@ -18,9 +18,9 @@ TYPED_TEST(AmorphicTest, MakeValueProducesCorrectRawValue) {
 }
 
 TYPED_TEST(AmorphicTest, MakeValueProducesDistinctValues) {
-    const auto a = this->make_value(1);
-    const auto b = this->make_value(2);
-    EXPECT_NE(this->to_raw(a), this->to_raw(b));
+    const auto first = this->make_value(1);
+    const auto second = this->make_value(2);
+    EXPECT_NE(this->to_raw(first), this->to_raw(second));
 }
 
 TYPED_TEST(AmorphicTest, AreEqualRawTrueForSameValue) {
@@ -37,7 +37,7 @@ TYPED_TEST(AmorphicTest, AreEqualRawFalseForDifferentValues) {
 
 TYPED_TEST(AmorphicTest, AreEqualTrueWhenOptionalHasMatchingValue) {
     const auto value = this->make_value(5);
-    std::optional<typename TestFixture::ValueType> opt = this->make_value(5);
+    const std::optional<typename TestFixture::ValueType> opt = this->make_value(5);
     EXPECT_TRUE(this->are_equal(value, opt));
 }
 
@@ -48,7 +48,7 @@ TYPED_TEST(AmorphicTest, AreEqualFalseWhenOptionalIsEmpty) {
 
 TYPED_TEST(AmorphicTest, AreEqualFalseWhenOptionalHasDifferentValue) {
     const auto value = this->make_value(5);
-    std::optional<typename TestFixture::ValueType> opt = this->make_value(99);
+    const std::optional<typename TestFixture::ValueType> opt = this->make_value(99);
     EXPECT_FALSE(this->are_equal(value, opt));
 }
 

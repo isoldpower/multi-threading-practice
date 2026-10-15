@@ -4,20 +4,24 @@
 
 #include <memory>
 
-
 namespace executables::benchmarks {
 
     class UnboundedQueueBenchmark {
-    protected:
-        std::shared_ptr<
-            multithreading::structures::unbounded_queue::UnboundedQueue<int>
-        > benchmark_queue;
+    private:
+        std::shared_ptr<multithreading::structures::unbounded_queue::UnboundedQueue<int>>
+            benchmark_queue;
 
+    protected:
         explicit UnboundedQueueBenchmark(
-            const std::shared_ptr<
-                multithreading::structures::unbounded_queue::UnboundedQueue<int>> &queue
+            const std::shared_ptr<multithreading::structures::unbounded_queue::UnboundedQueue<int>>&
+                queue
         );
+
+        [[nodiscard]] const std::shared_ptr<
+            multithreading::structures::unbounded_queue::UnboundedQueue<int>>&
+        queue() const noexcept {
+            return benchmark_queue;
+        }
     };
 
-
-} // namespace executables::benchmarks
+}  // namespace executables::benchmarks

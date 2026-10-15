@@ -3,8 +3,10 @@
 #include <gtest/gtest.h>
 #include <sys/mman.h>
 
+#include <chrono>
+#include <cstdint>
 #include <thread>
-
+#include <vector>
 
 using multithreading::utilities::performance::MemoryMeasurement;
 
@@ -12,19 +14,19 @@ namespace {
     constexpr double MIN_PLAUSIBLE_MEMORY_KiB = 1.0;
     constexpr double MAX_PLAUSIBLE_MEMORY_KiB = 10.0 * 1024.0 * 1024.0;
 
-    constexpr size_t SMALL_ALLOC_SIZE  = 16 * 1024 * 1024;
-    constexpr size_t MEDIUM_ALLOC_SIZE = 64 * 1024 * 1024;
-    constexpr size_t LARGE_ALLOC_SIZE  = 128 * 1024 * 1024;
+    constexpr size_t MiB = size_t{1024} * 1024;
+    constexpr size_t SMALL_ALLOC_SIZE = 16 * MiB;
+    constexpr size_t MEDIUM_ALLOC_SIZE = 64 * MiB;
+    constexpr size_t LARGE_ALLOC_SIZE = 128 * MiB;
 
-    constexpr size_t STABILITY_ITERATIONS  = 100;
+    constexpr size_t STABILITY_ITERATIONS = 100;
     constexpr size_t PERFORMANCE_ITERATIONS = 1000;
-    constexpr long MAX_MEASUREMENT_MS = 1000;
+    constexpr std::int64_t MAX_MEASUREMENT_MS = 1000;
 
     constexpr size_t CONCURRENT_THREAD_COUNT = 8;
 
     constexpr double CONSECUTIVE_TOLERANCE_KiB = 1024.0;
-} // anonymous namespace
-
+}  // anonymous namespace
 
 TEST(MemoryMeasurementTest, PeakMemoryUsageIsPositive) {
     const double peak = MemoryMeasurement::peakMemoryUsage();
@@ -46,11 +48,10 @@ TEST(MemoryMeasurementTest, CurrentUsageIncreasesAfterAllocation) {
     const double before = MemoryMeasurement::currentMemoryUsage();
 
     constexpr size_t ALLOC_SIZE = MEDIUM_ALLOC_SIZE;
-    auto* block = new char[ALLOC_SIZE];
-    std::fill(block, block + ALLOC_SIZE, 1);
+    std::vector<char> block(ALLOC_SIZE, 1);
 
     const double after = MemoryMeasurement::currentMemoryUsage();
-    delete[] block;
+    block = {};
 
     EXPECT_GT(after, before);
 }
@@ -60,9 +61,7 @@ TEST(MemoryMeasurementTest, PeakNeverDecreasesAfterFree) {
 
     {
         constexpr size_t ALLOC_SIZE = MEDIUM_ALLOC_SIZE;
-        auto* block = new char[ALLOC_SIZE];
-        std::fill(block, block + ALLOC_SIZE, 1);
-        delete[] block;
+        const std::vector<char> block(ALLOC_SIZE, 1);
     }
 
     const double peak_after = MemoryMeasurement::peakMemoryUsage();
@@ -105,16 +104,11 @@ TEST(MemoryMeasurementTest, LargerAllocationReportsHigherUsage) {
     constexpr size_t SMALL_ALLOC = SMALL_ALLOC_SIZE;
     constexpr size_t LARGE_ALLOC = LARGE_ALLOC_SIZE;
 
-    auto* small_block = new char[SMALL_ALLOC];
-    std::fill(small_block, small_block + SMALL_ALLOC, 1);
+    const std::vector<char> small_block(SMALL_ALLOC, 1);
     const double small_usage = MemoryMeasurement::currentMemoryUsage();
 
-    auto* large_block = new char[LARGE_ALLOC];
-    std::fill(large_block, large_block + LARGE_ALLOC, 1);
+    const std::vector<char> large_block(LARGE_ALLOC, 1);
     const double large_usage = MemoryMeasurement::currentMemoryUsage();
-
-    delete[] small_block;
-    delete[] large_block;
 
     EXPECT_GT(large_usage, small_usage);
 }

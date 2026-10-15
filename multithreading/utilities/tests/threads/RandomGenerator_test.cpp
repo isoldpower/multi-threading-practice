@@ -1,6 +1,6 @@
-#include <gtest/gtest.h>
-
 #include "../../include/threads/RandomGenerator.h"
+
+#include <gtest/gtest.h>
 
 using multithreading::utilities::threads::generate_random_double;
 using multithreading::utilities::threads::generate_random_size_t;
@@ -8,7 +8,6 @@ using multithreading::utilities::threads::generate_random_size_t;
 constexpr size_t SMALL_GENERATE_ATTEMPTS = 100;
 constexpr size_t GENERATE_ATTEMPTS = 10000;
 constexpr size_t EXCESSIVE_GENERATE_ATTEMPTS = 100000;
-
 
 TEST(RandomUtilsTest, GenerateRandomDoubleIsInUnitRange) {
     for (size_t i = 0; i < GENERATE_ATTEMPTS; ++i) {
@@ -122,13 +121,16 @@ TEST(RandomUtilsTest, ConcurrentCallsAreSafe) {
                 const size_t ranged_sizet = generate_random_size_t(0, 100);
 
                 if (unranged_double < 0.0 || unranged_double > 1.0) {
-                    failures.at(i) += "unranged_double out of [0, 1] at j=" + std::to_string(j) + "\n";
+                    failures.at(i) +=
+                        "unranged_double out of [0, 1] at j=" + std::to_string(j) + "\n";
                 }
                 if (ranged_double < -100.0 || ranged_double > 100.0) {
-                    failures.at(i) += "ranged_double out of [-100, 100] at j=" + std::to_string(j) + "\n";
+                    failures.at(i) +=
+                        "ranged_double out of [-100, 100] at j=" + std::to_string(j) + "\n";
                 }
                 if (ranged_sizet > 100UL) {
-                    failures.at(i) += "ranged_sizet out of [0, 100] at j=" + std::to_string(j) + "\n";
+                    failures.at(i) +=
+                        "ranged_sizet out of [0, 100] at j=" + std::to_string(j) + "\n";
                 }
             }
         });
