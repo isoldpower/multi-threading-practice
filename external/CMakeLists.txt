@@ -1,5 +1,4 @@
 include(FetchContent)
-include(CTest)
 
 # Include libraries on testing
 if (BUILD_TESTING)

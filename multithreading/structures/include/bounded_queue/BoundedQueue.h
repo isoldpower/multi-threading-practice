@@ -3,12 +3,13 @@
 #include <future>
 #include <optional>
 
-
 namespace multithreading::structures::bounded_queue {
 
     template <typename T>
     class BoundedQueue {
     public:
+        using value_type = T;
+
         BoundedQueue() = default;
         virtual ~BoundedQueue() = default;
 
@@ -24,10 +25,9 @@ namespace multithreading::structures::bounded_queue {
         virtual std::future<std::optional<T>> wait_dequeue_async(
             const std::chrono::steady_clock::duration& timeout
         ) = 0;
-        virtual bool try_enqueue(const T& value) = 0;
         virtual bool try_enqueue(T&& value) = 0;
 
         [[nodiscard]] virtual bool is_empty(bool isPrecise) const = 0;
         [[nodiscard]] virtual bool is_full(bool isPrecise) const = 0;
     };
-} // namespace multithreading::structures::bounded_queue
+}  // namespace multithreading::structures::bounded_queue

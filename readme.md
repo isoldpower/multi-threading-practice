@@ -54,5 +54,5 @@ Warships game against AI with skills, game saves, and progression.
 [![Readme Card](https://github-readme-stats.vercel.app/api/pin/?username=TrofimovVladislav5&theme=tokyonight&height=200&repo=cpp-warships)](https://github.com/TrofimovVladislav5/cpp-warships)
 
 TODO:
-- [ ] Write structures tests
-- [ ] Write benc
+- [ ] Write benchmarks tests
+- [ ] Complete two other laboratory works

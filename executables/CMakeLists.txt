@@ -10,7 +10,9 @@ add_executable(linked_list_benchmark
         linked_list_benchmark.cpp
         benchmarks/src/LinkedListBenchmark.cpp
         benchmarks/src/mcmp/LinkedListMCMPBenchmark.cpp)
+add_executable(temporary temp.cpp)
 
 target_link_libraries(unbounded_queue_benchmark PRIVATE utilities structures benchmark cxx_setup)
 target_link_libraries(bounded_queue_benchmark PRIVATE utilities structures benchmark cxx_setup)
 target_link_libraries(linked_list_benchmark PRIVATE utilities structures benchmark cxx_setup)
+target_link_libraries(temporary PRIVATE structures cxx_setup)

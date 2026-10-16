@@ -1,34 +1,38 @@
 #pragma once
 
+#include <memory>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 #include "./BenchmarkMatrix.h"
 #include "./BenchmarkMeasurement.h"
 #include "./BenchmarkMonitor.h"
 #include "./BenchmarkRunner.h"
 
-#include <memory>
-
 namespace multithreading::benchmark {
 
-    template <typename ...TMeasures>
-    struct alignas(64) BenchmarkResult {
+    template <typename... TMeasures>
+    struct BenchmarkResult {  // NOLINT(altera-struct-pack-align)
         size_t threads_count;
         size_t thread_size;
         std::tuple<BenchmarkMeasurementResult<TMeasures>...> measurements;
     };
 
-    template <typename ...TMeasures>
+    template <typename... TMeasures>
     class BenchmarkMeasurer {
     private:
         BenchmarkMatrixDefinition benchmark_matrix;
         std::shared_ptr<BenchmarkMonitor<TMeasures...>> benchmark_monitor;
+
     public:
         explicit BenchmarkMeasurer(
             BenchmarkMatrixDefinition matrix,
             std::shared_ptr<BenchmarkMonitor<TMeasures...>> monitor
         )
             : benchmark_matrix(std::move(matrix))
-            , benchmark_monitor(monitor)
-        {}
+            , benchmark_monitor(std::move(monitor)) {
+        }
 
         [[nodiscard]] std::vector<BenchmarkResult<TMeasures...>> measure_benchmark(
             const std::shared_ptr<BenchmarkRunner>& benchmark_runner
@@ -38,18 +42,20 @@ namespace multithreading::benchmark {
             for (const size_t threads_count : benchmark_matrix.threads_count) {
                 for (const size_t thread_size : benchmark_matrix.per_thread_sizes) {
                     this->benchmark_monitor->start_monitoring();
-                    benchmark_runner->run_benchmark_with({
-                        .threads_count = threads_count,
-                        .thread_size = thread_size
-                    });
+                    benchmark_runner->run_benchmark_with(
+                        {.threads_count = threads_count, .thread_size = thread_size}
+                    );
                     this->benchmark_monitor->stop_monitoring();
 
-                    if (auto measurements = this->benchmark_monitor->get_results(); measurements.has_value()) {
-                        benchmark_results.emplace_back(BenchmarkResult<TMeasures...>{
-                            .threads_count = threads_count,
-                            .thread_size = thread_size,
-                            .measurements = measurements.value()
-                        });
+                    if (auto measurements = this->benchmark_monitor->get_results();
+                        measurements.has_value()) {
+                        benchmark_results.emplace_back(
+                            BenchmarkResult<TMeasures...>{
+                                .threads_count = threads_count,
+                                .thread_size = thread_size,
+                                .measurements = measurements.value()
+                            }
+                        );
                     }
                 }
             }
@@ -57,4 +63,4 @@ namespace multithreading::benchmark {
             return benchmark_results;
         }
     };
-} // namespace multithreading::benchmark
+}  // namespace multithreading::benchmark

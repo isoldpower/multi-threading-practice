@@ -1,21 +1,19 @@
 #pragma once
 
+#include <chrono>
 #include <cstdint>
 #include <map>
-#include <chrono>
 
 #include "./BenchmarkMeasurement.h"
-
 
 namespace multithreading::benchmark {
 
     class AverageMemoryMeasurement final : public BenchmarkMeasurement<double> {
     private:
         std::map<std::chrono::nanoseconds, size_t> snapshots;
-        size_t baseline;
-    public:
-        ~AverageMemoryMeasurement() override = default;
+        size_t baseline{0};
 
+    public:
         explicit AverageMemoryMeasurement(const BenchmarkMeasurementTemplate& measurement);
 
         void start() override;
@@ -26,4 +24,4 @@ namespace multithreading::benchmark {
 
         std::optional<BenchmarkMeasurementResult<double>> get_result() override;
     };
-} // namespace multithreading::benchmark
+}  // namespace multithreading::benchmark

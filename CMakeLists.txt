@@ -9,6 +9,11 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
+# Enable GTest library
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    include(CTest)
+endif()
+
 # Enable Clang-tidy
 find_program(CLANG_TIDY_EXE NAMES "clang-tidy")
 if(CLANG_TIDY_EXE)
@@ -18,14 +23,27 @@ else()
 endif()
 
 # Libraries list
-add_library(cxx_setup INTERFACE multithreading/utilities
-        multithreading/benchmark/src/SpeedMeasurement.cpp)
+add_library(cxx_setup INTERFACE
+        multithreading/utilities
+        multithreading/structures
+        multithreading/benchmark)
 
 # General compiler options
 if (MSVC)
     target_compile_options(cxx_setup INTERFACE /W4 /WX /permissive-)
 elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(cxx_setup INTERFACE -Wall -Wextra -Wpedantic)
+endif()
+
+# Enable Address Sanitizer
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+if(ENABLE_ASAN)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        target_compile_options(cxx_setup INTERFACE -fsanitize=address -fno-omit-frame-pointer)
+        target_link_options(cxx_setup INTERFACE -fsanitize=address)
+    else()
+        message(WARNING "ASan is not supported for this compiler, skipping...")
+    endif()
 endif()
 
 target_compile_features(cxx_setup

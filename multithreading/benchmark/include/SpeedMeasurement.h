@@ -1,22 +1,22 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 
 #include "./BenchmarkMeasurement.h"
 
 namespace multithreading::benchmark {
 
-    using DurationType = long long;
+    using DurationType = std::int64_t;
 
-    class SpeedMeasurement final : public BenchmarkMeasurement<DurationType>
-    {
+    class SpeedMeasurement final : public BenchmarkMeasurement<DurationType> {
     private:
         std::chrono::high_resolution_clock::time_point start_time;
         std::chrono::high_resolution_clock::time_point end_time;
+
     public:
-        ~SpeedMeasurement() override = default;
-        explicit SpeedMeasurement(const BenchmarkMeasurementTemplate &measurement);
+        explicit SpeedMeasurement(const BenchmarkMeasurementTemplate& measurement);
 
         void start() override;
 
@@ -26,4 +26,4 @@ namespace multithreading::benchmark {
 
         std::optional<BenchmarkMeasurementResult<DurationType>> get_result() override;
     };
-} // namespace multithreading::benchmark
+}  // namespace multithreading::benchmark

@@ -2,17 +2,16 @@
 
 #include "./EpochReclamation.h"
 
-
 namespace multithreading::utilities::performance {
 
     template <typename T>
     class EpochGuard {
     private:
         EpochReclamation<T>* reclamation;
+
     public:
         explicit EpochGuard(EpochReclamation<T>* reclamation)
-            : reclamation(reclamation)
-        {
+            : reclamation(reclamation) {
             reclamation->engage_epoch_user();
         }
 
@@ -25,4 +24,4 @@ namespace multithreading::utilities::performance {
             reclamation->free_epoch_user();
         }
     };
-} // namespace multithreading::utilities::performance
+}  // namespace multithreading::utilities::performance

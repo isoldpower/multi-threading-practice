@@ -1,31 +1,35 @@
 #pragma once
 
-#include <cstddef>
+#include <multithreading/utilities/include/performance/Owner.h>
+
+#include <condition_variable>
+#include <cstdint>
+#include <future>
+#include <mutex>
+#include <optional>
 
 #include "./UnboundedQueue.h"
 
 namespace multithreading::structures::unbounded_queue {
 
+    constexpr size_t FG_NODE_ALIGNMENT = 16;
+
     template <typename T>
-    struct FGNode {
+    struct alignas(FG_NODE_ALIGNMENT) FGNode {
     private:
-        T value;
-        FGNode* nextNode;
+        T value{};
+        FGNode* nextNode{nullptr};
+
     public:
         explicit FGNode(const T& value)
-            : value(value)
-            , nextNode(nullptr)
-        {}
+            : value(value) {
+        }
 
         explicit FGNode(T&& value)
-            : value(std::move(value))
-            , nextNode(nullptr)
-        {}
+            : value(std::move(value)) {
+        }
 
-        FGNode()
-            : value(T{})
-            , nextNode(nullptr)
-        {}
+        FGNode() = default;
 
         [[nodiscard]] T& get() {
             return value;
@@ -35,7 +39,7 @@ namespace multithreading::structures::unbounded_queue {
             return nextNode;
         }
 
-        void setNext(FGNode* next) {
+        void set_next(FGNode* next) {
             this->nextNode = next;
         }
     };
@@ -48,18 +52,30 @@ namespace multithreading::structures::unbounded_queue {
 
         std::condition_variable enqueue_condition;
 
-        FGNode<T>* head;
+        gsl::owner<FGNode<T>*> head;
         FGNode<T>* tail;
 
+        static gsl::owner<FGNode<T>*> create_dummy() {
+            return new FGNode<T>();
+        }
+
+        static gsl::owner<FGNode<T>*> create_node(T&& value) {
+            return new FGNode<T>(std::move(value));
+        }
+
+        static gsl::owner<FGNode<T>*> adopt(FGNode<T>* node) noexcept {
+            return node;
+        }
+
         void unsafe_enqueue(FGNode<T>* node) {
-            tail->setNext(node);
+            tail->set_next(node);
             tail = node;
 
             enqueue_condition.notify_one();
         }
 
         std::optional<T> unsafe_dequeue() {
-            FGNode<T>* dummyNode = head;
+            gsl::owner<const FGNode<T>*> dummyNode = head;
             FGNode<T>* firstValuableNode = dummyNode->next();
 
             if (firstValuableNode == nullptr) {
@@ -67,7 +83,7 @@ namespace multithreading::structures::unbounded_queue {
             }
 
             std::optional<T> result = std::move(firstValuableNode->get());
-            head = firstValuableNode;
+            head = adopt(firstValuableNode);
             delete dummyNode;
 
             return result;
@@ -76,14 +92,15 @@ namespace multithreading::structures::unbounded_queue {
         bool unsafe_is_empty() const {
             return head->next() == nullptr;
         }
+
     public:
-        FGLockUnboundedQueueImpl() {
-            head = tail = new FGNode<T>();
+        FGLockUnboundedQueueImpl()
+            : head(create_dummy())
+            , tail(head) {
         }
 
         ~FGLockUnboundedQueueImpl() {
-            std::lock_guard head_lock(head_mu);
-            std::lock_guard tail_lock(tail_mu);
+            const std::scoped_lock lock(head_mu, tail_mu);
 
             while (true) {
                 // Optimisation purpose. If we put the ID-dependant condition in the while loop,
@@ -92,11 +109,12 @@ namespace multithreading::structures::unbounded_queue {
                     break;
                 }
 
-                const FGNode<T>* dummy = head;
-                head = head->next();
+                gsl::owner<const FGNode<T>*> dummy = head;
+                head = adopt(head->next());
                 delete dummy;
             }
-            delete tail;
+            // The walk stops on the tail, which head now owns.
+            delete head;
         }
 
         FGLockUnboundedQueueImpl(const FGLockUnboundedQueueImpl& other) = delete;
@@ -104,26 +122,26 @@ namespace multithreading::structures::unbounded_queue {
         FGLockUnboundedQueueImpl(FGLockUnboundedQueueImpl&& other) = delete;
         FGLockUnboundedQueueImpl& operator=(FGLockUnboundedQueueImpl&& other) = delete;
 
-        void enqueue(FGNode<T>* node) {
-            std::lock_guard lock(tail_mu);
+        void enqueue(T&& value) {
+            // Allocate before taking the lock to keep the critical section short.
+            gsl::owner<FGNode<T>*> node = create_node(std::move(value));
+            const std::scoped_lock lock(tail_mu);
 
             unsafe_enqueue(node);
         }
 
         std::optional<T> try_dequeue() {
-            std::lock_guard lock(head_mu);
+            const std::scoped_lock lock(head_mu);
 
             return unsafe_dequeue();
         }
 
-        std::optional<T> wait_dequeue(
-            const std::chrono::steady_clock::duration& timeout
-        ) {
+        std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) {
             std::unique_lock lock(head_mu);
 
             if (!enqueue_condition.wait_for(lock, timeout, [this]() {
-                return !this->unsafe_is_empty();
-            })) {
+                    return !this->unsafe_is_empty();
+                })) {
                 return std::nullopt;
             }
 
@@ -131,7 +149,7 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         [[nodiscard]] bool is_empty() const {
-            std::lock_guard lock(head_mu);
+            const std::scoped_lock lock(head_mu);
             return unsafe_is_empty();
         }
     };
@@ -140,11 +158,12 @@ namespace multithreading::structures::unbounded_queue {
     class FGLockUnboundedQueue final : public UnboundedQueue<T> {
     private:
         FGLockUnboundedQueueImpl<T> impl;
+
     public:
         FGLockUnboundedQueue() noexcept
             : UnboundedQueue<T>()
-            , impl()
-        {}
+            , impl() {
+        }
 
         FGLockUnboundedQueue(FGLockUnboundedQueue&& other) = delete;
         FGLockUnboundedQueue(const FGLockUnboundedQueue& other) = delete;
@@ -153,23 +172,15 @@ namespace multithreading::structures::unbounded_queue {
 
         ~FGLockUnboundedQueue() override = default;
 
-        void enqueue(const T& value) override {
-            auto* node = new FGNode<T>(value);
-            impl.enqueue(node);
-        }
-
         void enqueue(T&& value) override {
-            auto* node = new FGNode<T>(std::move(value));
-            impl.enqueue(node);
+            impl.enqueue(std::move(value));
         }
 
         std::optional<T> try_dequeue() override {
             return impl.try_dequeue();
         }
 
-        std::optional<T> wait_dequeue(
-            const std::chrono::steady_clock::duration& timeout
-        ) override {
+        std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) override {
             return impl.wait_dequeue(timeout);
         }
 
@@ -185,4 +196,4 @@ namespace multithreading::structures::unbounded_queue {
             return impl.is_empty();
         }
     };
-} // namespace multithreading::structures::unbounded_queue
+}  // namespace multithreading::structures::unbounded_queue
