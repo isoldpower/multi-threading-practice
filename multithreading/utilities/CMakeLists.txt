@@ -13,8 +13,7 @@ if (BUILD_TESTING)
             tests/threads/CountThreadBarrier_test.cpp
             tests/threads/ThreadBarrier_test.cpp
             tests/threads/RandomGenerator_test.cpp
-            tests/RandomEvent_test.cpp
-            tests/Application_test.cpp)
+            tests/RandomEvent_test.cpp)
     target_link_libraries(utilities_tests PRIVATE GTest::gtest_main utilities)
     include(GoogleTest)
     gtest_discover_tests(utilities_tests)

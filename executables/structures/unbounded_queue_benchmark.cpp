@@ -1,3 +1,4 @@
+#include <application/runtime/Application.h>
 #include <application/structures_scenarios/ThreadConfig.h>
 #include <application/structures_scenarios/mcmp/UnboundedQueueMCMPBenchmark.h>
 #include <benchmark/AverageMemoryMeasurement.h>
@@ -11,7 +12,6 @@
 #include <structures/unbounded_queue/FGLockUnboundedQueue.h>
 #include <structures/unbounded_queue/LockFreeUnboundedQueue.h>
 #include <structures/unbounded_queue/UnboundedQueue.h>
-#include <utilities/Application.h>
 
 #include <iostream>
 #include <memory>
@@ -71,8 +71,8 @@ namespace multithreading::application {
 
 auto main() -> int {
     try {
-        multithreading::utilities::Application benchmarkApplication(
-            multithreading::utilities::ApplicationInfo<int>{
+        multithreading::runtime::Application benchmarkApplication(
+            multithreading::runtime::ApplicationInfo<int>{
                 .appName = std::string{"Unbounded Queue Benchmark", std::allocator<char>{}},
                 .appVersion = std::string{"1.0.0", std::allocator<char>{}},
                 .beforeTask = std::nullopt,
