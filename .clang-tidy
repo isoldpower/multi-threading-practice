@@ -36,8 +36,7 @@ WarningsAsErrors: >
   -boost-use-ranges,
   -portability-avoid-pragma-once,
   -llvm-header-guard
-HeaderFilterRegex: '.*'
-ExcludeHeaderFilterRegex: '.*/(build|cmake-build-[^/]*|_deps)/.*'
+HeaderFilterRegex: '.*/(multithreading|executables)/.*'
 FormatStyle:     file
 CheckOptions:
   - key:             cert-dcl16-c.NewSuffixes

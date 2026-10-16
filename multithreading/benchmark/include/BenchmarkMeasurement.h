@@ -16,6 +16,7 @@ namespace multithreading::benchmark {
     };
 
     template <typename T>
+    // NOLINTNEXTLINE(altera-struct-pack-align)
     struct alignas(MEASUREMENT_RESULT_ALIGNMENT) BenchmarkMeasurementResult {
     private:
         BenchmarkMeasurementTemplate reference_template;

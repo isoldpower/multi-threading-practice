@@ -102,14 +102,14 @@ TEST(ThreadBarrierTest, TasksExecuteConcurrentlyAfterKickstart) {
             const size_t current = active.fetch_add(1, std::memory_order_release) + 1;
             size_t prev = peak.load(std::memory_order_acquire);
             while (
-                current > prev &&
-                !peak.compare_exchange_weak(
-                  prev,
-                  current,
-                  std::memory_order_release,
-                  std::memory_order_acquire
-                )
-            ) {}
+                current > prev && !peak.compare_exchange_weak(
+                                      prev,
+                                      current,
+                                      std::memory_order_release,
+                                      std::memory_order_acquire
+                                  )
+            ) {
+            }
 
             {
                 std::unique_lock lock(sync_mutex);

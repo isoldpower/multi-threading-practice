@@ -7,6 +7,7 @@
 #include "../Units.h"
 
 #ifdef __linux__
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -25,7 +26,9 @@ namespace multithreading::utilities::performance {
 #ifdef __APPLE__
             memory_usage = static_cast<double>(usage.ru_maxrss) / static_cast<double>(KiB);
 #else
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             memory_usage = static_cast<double>(usage.ru_maxrss);
+            memory_usage = std::max(memory_usage, currentMemoryUsage());
 #endif
             return memory_usage;
         }
@@ -35,8 +38,8 @@ namespace multithreading::utilities::performance {
             std::ifstream status_stream("/proc/self/status", std::ios_base::in);
             std::string line;
             while (std::getline(status_stream, line)) {
-                if (line.find("VmRSS:") != std::string::npos) {
-                    std::istringstream fields(line);
+                if (line.starts_with("VmRSS:")) {
+                    std::istringstream fields(line, std::ios_base::in);
                     std::string label;
                     size_t rss_kib = 0;
                     fields >> label >> rss_kib;
@@ -53,7 +56,6 @@ namespace multithreading::utilities::performance {
             const kern_return_t kerr = task_info(
                 mach_task_self(),
                 MACH_TASK_BASIC_INFO,
-                // task_info takes every info flavour as an opaque integer_t buffer.
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
                 reinterpret_cast<task_info_t>(&basic_info),
                 &msg_size

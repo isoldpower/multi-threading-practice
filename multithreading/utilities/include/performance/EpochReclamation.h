@@ -72,7 +72,7 @@ namespace multithreading::utilities::performance {
             return iterator->second;
         }
 
-        ThreadRecord& engaged_thread_record() const noexcept {
+        [[nodiscard]] ThreadRecord& engaged_thread_record() const noexcept {
             return thread_records.find(this)->second;
         }
 
@@ -84,7 +84,7 @@ namespace multithreading::utilities::performance {
             return *std::next(retire_lists.begin(), static_cast<ptrdiff_t>(epoch % RETIRE_CLUSTER));
         }
 
-        size_t get_oldest_active_epoch() const noexcept {
+        [[nodiscard]] size_t get_oldest_active_epoch() const noexcept {
             size_t min_epoch = epoch_total.load(std::memory_order_acquire);
 
             for (const auto& slot : thread_slots) {

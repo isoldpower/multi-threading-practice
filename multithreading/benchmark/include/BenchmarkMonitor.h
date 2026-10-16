@@ -69,7 +69,7 @@ namespace multithreading::benchmark {
                     true,
                     std::memory_order_release,
                     std::memory_order_acquire
-            )) {
+                )) {
                 std::cerr << "Lost race condition in monitoring process from BenchmarkMonitor\n";
                 return false;
             }
@@ -102,7 +102,7 @@ namespace multithreading::benchmark {
                     false,
                     std::memory_order_release,
                     std::memory_order_acquire
-            )) {
+                )) {
                 std::cerr
                     << "Lost race condition in stopping monitoring process from BenchmarkMonitor\n";
 

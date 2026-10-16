@@ -7,7 +7,6 @@
 
 #include <atomic>
 #include <cstddef>
-#include <limits>
 #include <memory>
 #include <optional>
 #include <semaphore>
@@ -66,7 +65,8 @@ namespace multithreading::structures::unbounded_queue {
 
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> head;
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> tail;
-        std::counting_semaphore<std::numeric_limits<ptrdiff_t>::max()> items_available;
+        // Default max is the platform's largest supported count (libstdc++ caps it at INT_MAX).
+        std::counting_semaphore<> items_available;
         utilities::performance::EpochReclamation<LockFreeNode<T>> epoch_reclamation;
 
         static gsl::owner<LockFreeNode<T>*> create_dummy() {
@@ -256,7 +256,7 @@ namespace multithreading::structures::unbounded_queue {
             return try_dequeue();
         }
 
-        bool is_empty() const {
+        [[nodiscard]] bool is_empty() const {
             size_t iterator = 0;
 
             while (iterator < maxAlgorithmDepth) {

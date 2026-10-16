@@ -3,7 +3,6 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
-#include <bit>
 #include <cstdint>
 #include <memory>
 #include <utility>
@@ -14,7 +13,10 @@ using multithreading::utilities::performance::CACHE_LINE_SIZE;
 
 template <typename T>
 static uintptr_t address_of(const T& object) {
-    return std::bit_cast<uintptr_t>(&object);
+    // std::bit_cast would avoid the NOLINT, but clang-tidy 18's static analyzer crashes on
+    // arithmetic over a bit_cast pointer value.
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    return reinterpret_cast<uintptr_t>(&object);
 }
 
 TEST(AlignedFieldTest, DefaultAlignmentIsCacheLine) {

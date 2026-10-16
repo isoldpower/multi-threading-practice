@@ -7,7 +7,10 @@ Checks: >
   -cppcoreguidelines-avoid-magic-numbers,
   -readability-magic-numbers,
   -cppcoreguidelines-non-private-member-variables-in-classes,
-  -misc-non-private-member-variables-in-classes
+  -misc-non-private-member-variables-in-classes,
+  -fuchsia-default-arguments-calls
+# fuchsia-default-arguments-calls: libstdc++ gives container constructors defaulted allocator
+# arguments, so every sized std::vector or std::string in a test would need one spelled out.
 CheckOptions:
   - key:   readability-function-cognitive-complexity.IgnoreMacros
     value: true

@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <future>
 #include <iterator>
+#include <memory>
 #include <optional>
 #include <semaphore>
 #include <utility>
@@ -50,14 +51,16 @@ namespace multithreading::structures::bounded_queue {
             return *std::next(data.begin(), static_cast<ptrdiff_t>(position % capacity));
         }
 
-        const CircularSlot<T>& slot_at(const size_t position) const noexcept {
+        [[nodiscard]] const CircularSlot<T>& slot_at(const size_t position) const noexcept {
             return *std::next(data.begin(), static_cast<ptrdiff_t>(position % capacity));
         }
 
     public:
         explicit LockFreeBoundedQueueImpl(const size_t capacity)
             : capacity(capacity)
-            , data(capacity)
+            // Explicit allocator: libstdc++ defaults it, which fuchsia-default-arguments-calls
+            // flags.
+            , data(capacity, std::allocator<CircularSlot<T>>{})
             , items_available(0)
             , enqueue_pos(0)
             , dequeue_pos(0) {
@@ -175,7 +178,7 @@ namespace multithreading::structures::bounded_queue {
             }
         }
 
-        bool is_empty() const {
+        [[nodiscard]] bool is_empty() const {
             while (true) {
                 const size_t position = dequeue_pos.get().load(std::memory_order_relaxed);
                 const size_t sequence = slot_at(position).sequence.load(std::memory_order_acquire);
@@ -188,7 +191,7 @@ namespace multithreading::structures::bounded_queue {
             }
         }
 
-        bool is_full() const {
+        [[nodiscard]] bool is_full() const {
             while (true) {
                 const size_t position = enqueue_pos.get().load(std::memory_order_relaxed);
                 const size_t sequence = slot_at(position).sequence.load(std::memory_order_acquire);

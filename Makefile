@@ -5,6 +5,9 @@ C_COMPILER ?= gcc
 BUILD_TYPE ?= Release
 CLEAN ?= 0
 PRESERVE ?= 0
+LINUX_IMAGE ?= multi-threading-practice-linux
+LINUX_CPP_COMPILER ?= g++
+LINUX_C_COMPILER ?= gcc
 
 compile:
 	if test "$(CLEAN)" -eq "1" && test -d "$(BUILD_DIR)"; then rm -rf "$(BUILD_DIR)"; fi
@@ -32,3 +35,12 @@ test:
 test-asan:
 	if test "$(PRESERVE)" -eq "0"; then $(MAKE) rebuild-asan; fi
 	GTEST_COLOR=1 ctest --test-dir "$(BUILD_DIR)" --build-config "Debug" --output-on-failure
+
+linux-image:
+	docker build -t "$(LINUX_IMAGE)" -f docker/linux.Dockerfile docker
+test-linux: linux-image
+	docker run --rm -v "$(CURDIR):/src:ro" -w /src "$(LINUX_IMAGE)" \
+	       sh -c 'CMAKE_BUILD_PARALLEL_LEVEL=$$(nproc) make test BUILD_DIR=/tmp/build \
+	              CPP_COMPILER="$(LINUX_CPP_COMPILER)" C_COMPILER="$(LINUX_C_COMPILER)"'
+
+.PHONY: compile rebuild rebuild-debug rebuild-release rebuild-asan test test-asan linux-image test-linux

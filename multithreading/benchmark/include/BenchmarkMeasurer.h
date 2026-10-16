@@ -56,7 +56,7 @@ namespace multithreading::benchmark {
                                 .measurements = measurements.value()
                             }
                         );
-                        }
+                    }
                 }
             }
 
