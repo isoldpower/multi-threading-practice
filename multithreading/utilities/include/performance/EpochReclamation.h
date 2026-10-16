@@ -32,6 +32,7 @@ namespace multithreading::utilities::performance {
     };
 
     template <typename T>
+    // NOLINTNEXTLINE(altera-struct-pack-align)
     struct alignas(RETIRE_LIST_ALIGNMENT) RetireList {
         std::vector<std::unique_ptr<T>> retire_references;
         std::mutex list_mutex;

@@ -6,6 +6,7 @@ BUILD_TYPE ?= Release
 CLEAN ?= 0
 PRESERVE ?= 0
 LINUX_IMAGE ?= multi-threading-practice-linux
+LINUX_PLATFORM ?= linux/amd64
 LINUX_CPP_COMPILER ?= g++
 LINUX_C_COMPILER ?= gcc
 
@@ -37,9 +38,9 @@ test-asan:
 	GTEST_COLOR=1 ctest --test-dir "$(BUILD_DIR)" --build-config "Debug" --output-on-failure
 
 linux-image:
-	docker build -t "$(LINUX_IMAGE)" -f docker/linux.Dockerfile docker
+	docker build --platform "$(LINUX_PLATFORM)" -t "$(LINUX_IMAGE)" -f docker/linux.Dockerfile docker
 test-linux: linux-image
-	docker run --rm -v "$(CURDIR):/src:ro" -w /src "$(LINUX_IMAGE)" \
+	docker run --rm --platform "$(LINUX_PLATFORM)" -v "$(CURDIR):/src:ro" -w /src "$(LINUX_IMAGE)" \
 	       sh -c 'CMAKE_BUILD_PARALLEL_LEVEL=$$(nproc) make test BUILD_DIR=/tmp/build \
 	              CPP_COMPILER="$(LINUX_CPP_COMPILER)" C_COMPILER="$(LINUX_C_COMPILER)"'
 
