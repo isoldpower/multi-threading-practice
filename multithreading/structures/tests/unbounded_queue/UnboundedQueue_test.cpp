@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
-#include <multithreading/utilities/include/tests/AmorphicTest.h>
-#include <multithreading/utilities/include/threads/ThreadBarrier.h>
+#include <structures/unbounded_queue/FGLockUnboundedQueue.h>
+#include <structures/unbounded_queue/LockFreeUnboundedQueue.h>
+#include <utilities/tests/AmorphicTest.h>
+#include <utilities/threads/ThreadBarrier.h>
 
 #include <memory>
-
-#include "../../include/unbounded_queue/FGLockUnboundedQueue.h"
-#include "../../include/unbounded_queue/LockFreeUnboundedQueue.h"
 
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 

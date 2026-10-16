@@ -26,21 +26,30 @@ the project structure and module relations
   ├── CMakeLists.txt                # Main config file with general project settings
   ├── Makefile                      # Makefile with project management commands. Adjust it to add more commands
   │
-  ├── [project_name]                # Main project directory which stores all libraries
-  │   ├── CMakeLists.txt            # Libraries config file
-  │   └── tools                     # Example library
-  │       ├── CMakeLists.txt        # Library config file
-  │       ├── named_tools.cpp       # Library source file
-  │       ├── named_tools.h         # Library header file
-  │       ├── tests                 # Library tests directory
-  │       │   └── main.cpp          # Library tests source file
-  │       ├── tools.cpp             # Library source file
-  │       └── tools.h               # Library header file
-  │
-  ├── executables                   # Directory for executable files, which are usually entry points for the project
-  │   ├── CMakeLists.txt            # Executables config file
-  │   └── print_hello.cpp           # Example executable source file
-  │
+  ├── [project_name]                # Main project directory
+  │   ├── CMakeLists.txt            # Libraries config file
+  │   ├── tools                     # Example reusable library, owing nothing to a particular application
+  │   │   ├── CMakeLists.txt        # Library config file
+  │   │   ├── include/tools         # Public headers, included as <tools/named_tools.h>
+  │   │   │   └── named_tools.h
+  │   │   ├── src/tools             # Library sources, mirroring the headers layout
+  │   │   │   └── named_tools.cpp
+  │   │   └── tests                 # Library tests directory
+  │   │       └── main.cpp
+  │   │
+  │   └── application               # Application definitions built on top of the libraries
+  │       ├── CMakeLists.txt
+  │       └── structures_scenarios  # Example application layer, included as <application/structures_scenarios/...>
+  │           ├── CMakeLists.txt
+  │           ├── include/application/structures_scenarios
+  │           └── src/application/structures_scenarios
+  │
+  ├── executables                   # Thin entry points wiring application layers together
+  │   ├── CMakeLists.txt            # Executables config file
+  │   └── benchmarks                # Group of related executables
+  │       ├── CMakeLists.txt
+  │       └── print_hello.cpp       # Example executable source file
+  │
   ├── external                      # Directory for external libraries, i.e. Google Test, JSON, etc.
   │   └── CMakeLists.txt            # External libraries config file
   └── readme.md                     # Project README file

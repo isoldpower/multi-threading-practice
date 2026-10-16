@@ -1,13 +1,11 @@
-#include "../include/Application.h"
-
 #include <gtest/gtest.h>
+#include <utilities/Application.h>
+#include <utilities/tests/Output.h>
 
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-#include "tests/Output.h"
 
 using multithreading::utilities::Application;
 using multithreading::utilities::ApplicationInfo;

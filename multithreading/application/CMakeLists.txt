@@ -1,0 +1,2 @@
+add_subdirectory(structures_scenarios)
+add_subdirectory(computing_scenarios)

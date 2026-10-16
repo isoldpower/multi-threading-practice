@@ -1,6 +1,8 @@
 #include <gtest/gtest.h>
-#include <multithreading/utilities/include/tests/AmorphicTest.h>
-#include <multithreading/utilities/include/threads/ThreadBarrier.h>
+#include <structures/bounded_queue/FGLockBoundedQueue.h>
+#include <structures/bounded_queue/LockFreeBoundedQueue.h>
+#include <utilities/tests/AmorphicTest.h>
+#include <utilities/threads/ThreadBarrier.h>
 
 #include <chrono>
 #include <cstdint>
@@ -9,9 +11,6 @@
 #include <optional>
 #include <thread>
 #include <vector>
-
-#include "../../include/bounded_queue/FGLockBoundedQueue.h"
-#include "../../include/bounded_queue/LockFreeBoundedQueue.h"
 
 constexpr size_t DEFAULT_QUEUE_SIZE = 10;
 

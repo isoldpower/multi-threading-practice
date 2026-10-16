@@ -22,11 +22,8 @@ else()
     message(WARNING "Clang-Tidy EXE not found; Skipping clang-tidy integration...")
 endif()
 
-# Libraries list
-add_library(cxx_setup INTERFACE
-        multithreading/utilities
-        multithreading/structures
-        multithreading/benchmark)
+# Shared compiler settings; libraries expose their own include roots.
+add_library(cxx_setup INTERFACE)
 
 # General compiler options
 if (MSVC)
@@ -46,10 +43,7 @@ if(ENABLE_ASAN)
     endif()
 endif()
 
-target_compile_features(cxx_setup
-        INTERFACE cxx_std_20)
-target_include_directories(cxx_setup
-        INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_features(cxx_setup INTERFACE cxx_std_20)
 
 # Subdirectories
 add_subdirectory(external)

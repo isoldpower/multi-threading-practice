@@ -1,14 +1,13 @@
 #include <gtest/gtest.h>
-#include <multithreading/utilities/include/RandomEvent.h>
-#include <multithreading/utilities/include/tests/AmorphicTest.h>
-#include <multithreading/utilities/include/threads/ThreadBarrier.h>
+#include <structures/linked_list/FGLockLinkedList.h>
+#include <structures/linked_list/LockFreeLinkedList.h>
+#include <utilities/RandomEvent.h>
+#include <utilities/tests/AmorphicTest.h>
+#include <utilities/threads/ThreadBarrier.h>
 
 #include <map>
 #include <memory>
 #include <optional>
-
-#include "../../include/linked_list/FGLockLinkedList.h"
-#include "../../include/linked_list/LockFreeLinkedList.h"
 
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 constexpr size_t TEST_THREADS_COUNT = 8;

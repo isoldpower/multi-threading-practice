@@ -1,6 +1,5 @@
-#include "../../include/threads/RandomGenerator.h"
-
 #include <gtest/gtest.h>
+#include <utilities/threads/RandomGenerator.h>
 
 using multithreading::utilities::threads::generate_random_double;
 using multithreading::utilities::threads::generate_random_size_t;

@@ -1,6 +1,5 @@
-#include "../../include/threads/ThreadBarrier.h"
-
 #include <gtest/gtest.h>
+#include <utilities/threads/ThreadBarrier.h>
 
 using multithreading::utilities::threads::ThreadBarrier;
 

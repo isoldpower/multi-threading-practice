@@ -1,6 +1,5 @@
-#include "../../include/performance/AlignedField.h"
-
 #include <gtest/gtest.h>
+#include <utilities/performance/AlignedField.h>
 
 #include <atomic>
 #include <cstdint>

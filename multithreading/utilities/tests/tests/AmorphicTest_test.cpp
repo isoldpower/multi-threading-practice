@@ -1,6 +1,5 @@
-#include "../../include/tests/AmorphicTest.h"
-
 #include <gtest/gtest.h>
+#include <utilities/tests/AmorphicTest.h>
 
 #include <memory>
 #include <optional>

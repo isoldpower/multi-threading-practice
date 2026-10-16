@@ -13,7 +13,7 @@ Testing of the correctness of sorting results and comparison with a single-threa
 
 ## From Author
 The library will provide the required reusable parts for parallel computing. The exact usages and/or configurations will
-be stored in the `executables` directory.
+be stored in the `{root}/{project_name}/application` layers, with entry points in the `executables` directory.
 
 3.1 For the matrix multiplication the basis will be implemented to investigate and utilize the Strassen's algorithm;
 

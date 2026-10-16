@@ -1,11 +1,10 @@
 #include <gtest/gtest.h>
+#include <utilities/performance/EpochGuard.h>
+#include <utilities/threads/CountThreadBarrier.h>
+#include <utilities/threads/ThreadBarrier.h>
 
 #include <algorithm>
 #include <vector>
-
-#include "../../include/performance/EpochGuard.h"
-#include "../../include/threads/CountThreadBarrier.h"
-#include "../../include/threads/ThreadBarrier.h"
 
 namespace {
     /** @brief Raises the flag it points at when deleted, so tests can observe reclamation. */

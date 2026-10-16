@@ -1,6 +1,5 @@
-#include "../include/RandomEvent.h"
-
 #include <gtest/gtest.h>
+#include <utilities/RandomEvent.h>
 
 using multithreading::utilities::random_event;
 
