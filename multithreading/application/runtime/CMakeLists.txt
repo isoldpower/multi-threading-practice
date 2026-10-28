@@ -1,4 +1,3 @@
-# Header-only, so nothing to compile; consumers pick the headers up through the interface.
 add_library(multithreading_runtime INTERFACE)
 
 # Tests setup
@@ -14,6 +13,7 @@ endif()
 target_include_directories(multithreading_runtime
         INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(multithreading_runtime)
 
 # Link dependencies
 target_link_libraries(multithreading_runtime INTERFACE cxx_setup)

@@ -16,7 +16,9 @@ Checks: >
   -altera-id-dependent-backward-branch,
   -boost-use-ranges,
   -portability-avoid-pragma-once,
-  -llvm-header-guard
+  -llvm-header-guard,
+  -bugprone-easily-swappable-parameters,
+  -misc-no-recursion
 WarningsAsErrors: >
   clang-diagnostic-*,
   clang-analyzer-*,
@@ -35,7 +37,9 @@ WarningsAsErrors: >
   -altera-id-dependent-backward-branch,
   -boost-use-ranges,
   -portability-avoid-pragma-once,
-  -llvm-header-guard
+  -llvm-header-guard,
+  -bugprone-easily-swappable-parameters,
+  -misc-no-recursion
 HeaderFilterRegex: '.*/(multithreading|executables)/.*'
 FormatStyle:     file
 CheckOptions:

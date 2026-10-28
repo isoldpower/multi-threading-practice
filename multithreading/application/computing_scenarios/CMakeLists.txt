@@ -1,6 +1,8 @@
 # Compile files
 add_library(multithreading_computing_scenarios
         # Merge sort
+        src/application/computing_scenarios/merge_sort/SortConfig.cpp
+        src/application/computing_scenarios/merge_sort/SortInputs.cpp
         src/application/computing_scenarios/merge_sort/MergeSortBenchmark.cpp
 )
 
@@ -8,6 +10,7 @@ add_library(multithreading_computing_scenarios
 target_include_directories(multithreading_computing_scenarios
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(multithreading_computing_scenarios)
 
 # Link dependencies
 target_link_libraries(multithreading_computing_scenarios PUBLIC parallel_computing benchmark cxx_setup)

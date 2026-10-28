@@ -2,8 +2,9 @@
 
 #include <structures/unbounded_queue/UnboundedQueue.h>
 #include <utilities/performance/Owner.h>
+#include <utilities/threads/ItemSignal.h>
 
-#include <condition_variable>
+#include <atomic>
 #include <cstdint>
 #include <future>
 #include <mutex>
@@ -17,7 +18,9 @@ namespace multithreading::structures::unbounded_queue {
     struct alignas(FG_NODE_ALIGNMENT) FGNode {
     private:
         T value{};
-        FGNode* nextNode{nullptr};
+        // Atomic because the two locks meet here: with one item queued, an enqueue writes this
+        // under the tail lock while a dequeue reads it under the head lock
+        std::atomic<FGNode*> nextNode{nullptr};
 
     public:
         explicit FGNode(const T& value)
@@ -35,11 +38,11 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         [[nodiscard]] FGNode* next() const {
-            return nextNode;
+            return nextNode.load(std::memory_order_acquire);
         }
 
         void set_next(FGNode* next) {
-            this->nextNode = next;
+            this->nextNode.store(next, std::memory_order_release);
         }
     };
 
@@ -49,7 +52,7 @@ namespace multithreading::structures::unbounded_queue {
         mutable std::mutex head_mu;
         mutable std::mutex tail_mu;
 
-        std::condition_variable enqueue_condition;
+        utilities::threads::ItemSignal items_signal;
 
         gsl::owner<FGNode<T>*> head;
         FGNode<T>* tail;
@@ -69,8 +72,6 @@ namespace multithreading::structures::unbounded_queue {
         void unsafe_enqueue(FGNode<T>* node) {
             tail->set_next(node);
             tail = node;
-
-            enqueue_condition.notify_one();
         }
 
         std::optional<T> unsafe_dequeue() {
@@ -124,9 +125,11 @@ namespace multithreading::structures::unbounded_queue {
         void enqueue(T&& value) {
             // Allocate before taking the lock to keep the critical section short.
             gsl::owner<FGNode<T>*> node = create_node(std::move(value));
-            const std::scoped_lock lock(tail_mu);
-
-            unsafe_enqueue(node);
+            {
+                const std::scoped_lock lock(tail_mu);
+                unsafe_enqueue(node);
+            }
+            items_signal.notify();
         }
 
         std::optional<T> try_dequeue() {
@@ -136,15 +139,11 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) {
-            std::unique_lock lock(head_mu);
-
-            if (!enqueue_condition.wait_for(lock, timeout, [this]() {
-                    return !this->unsafe_is_empty();
-                })) {
-                return std::nullopt;
-            }
-
-            return unsafe_dequeue();
+            // The waiter checks under the head lock while enqueues signal under the tail lock, so a
+            // condition variable could miss a wake-up; ItemSignal cannot
+            return items_signal.wait_for(timeout, [this]() {
+                return try_dequeue();
+            });
         }
 
         [[nodiscard]] bool is_empty() const {

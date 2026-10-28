@@ -2,9 +2,9 @@
 
 #include <structures/bounded_queue/BoundedQueue.h>
 #include <utilities/performance/Owner.h>
+#include <utilities/threads/ItemSignal.h>
 
 #include <atomic>
-#include <condition_variable>
 #include <future>
 #include <mutex>
 #include <optional>
@@ -17,7 +17,9 @@ namespace multithreading::structures::bounded_queue {
     struct alignas(FG_NODE_ALIGNMENT) FGNode {
     private:
         T value{};
-        FGNode<T>* next_node{nullptr};
+        // Atomic because the two locks meet here: with one item queued, an enqueue writes this
+        // under the tail lock while a dequeue reads it under the head lock
+        std::atomic<FGNode<T>*> next_node{nullptr};
 
     public:
         explicit FGNode(const T& value)
@@ -36,11 +38,11 @@ namespace multithreading::structures::bounded_queue {
         }
 
         void setNext(FGNode<T>* node) {
-            this->next_node = node;
+            this->next_node.store(node, std::memory_order_release);
         }
 
         [[nodiscard]] FGNode<T>* next() const {
-            return next_node;
+            return next_node.load(std::memory_order_acquire);
         }
 
         [[nodiscard]] const T& get() const {
@@ -61,7 +63,7 @@ namespace multithreading::structures::bounded_queue {
 
         std::atomic<size_t> size_counter{0};
         std::atomic<bool> is_shutdown{false};
-        std::condition_variable enqueue_condition;
+        utilities::threads::ItemSignal items_signal;
         mutable std::mutex tail_mu;
         mutable std::mutex head_mu;
 
@@ -97,7 +99,6 @@ namespace multithreading::structures::bounded_queue {
             tail->setNext(node);
             tail = node;
 
-            enqueue_condition.notify_one();
             return true;
         }
 
@@ -133,9 +134,6 @@ namespace multithreading::structures::bounded_queue {
 
         ~FGLockBoundedQueueImpl() {
             is_shutdown.store(true, std::memory_order_release);
-            // Notify everyone that the state changed. They will wake up because now
-            // operations are not allowed.
-            enqueue_condition.notify_all();
 
             const std::scoped_lock lock(head_mu, tail_mu);
             while (true) {
@@ -178,31 +176,17 @@ namespace multithreading::structures::bounded_queue {
         }
 
         std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) {
-            // Lock the mutex, wait for new item to be enqueued. Return std::nullopt if
-            // the time limit exceeded.
-            std::unique_lock lock(head_mu);
-            if (!enqueue_condition.wait_for(lock, timeout, [this]() {
-                    return !is_operations_allowed() || !unsafe_is_empty();
-                })) {
-                return std::nullopt;
-            }
-
-            // Check if we woke up because operations are not allowed.
-            if (!is_operations_allowed()) {
-                return std::nullopt;
-            }
-
-            auto result = unsafe_dequeue();
-            if (result.has_value()) {
-                size_counter.fetch_sub(1, std::memory_order_relaxed);
-            }
-
-            return result;
+            // The waiter checks under the head lock while enqueues signal under the tail lock, so a
+            // condition variable could miss a wake-up; ItemSignal cannot
+            return items_signal.wait_for(timeout, [this] {
+                return try_dequeue();
+            });
         }
 
         bool try_enqueue(T&& value) {
             gsl::owner<FGNode<T>*> node = create_node(std::move(value));
             if (try_link(node)) {
+                items_signal.notify();
                 return true;
             }
 
@@ -260,7 +244,7 @@ namespace multithreading::structures::bounded_queue {
         std::future<std::optional<T>> wait_dequeue_async(
             const std::chrono::steady_clock::duration& timeout
         ) override {
-            return std::async(std::launch::async, [this, timeout]() {
+            return std::async(std::launch::async, [this, timeout] {
                 return this->impl.wait_dequeue(timeout);
             });
         }

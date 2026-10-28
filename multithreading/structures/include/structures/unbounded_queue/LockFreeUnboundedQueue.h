@@ -5,23 +5,19 @@
 #include <utilities/performance/EpochGuard.h>
 #include <utilities/performance/EpochReclamation.h>
 #include <utilities/performance/Owner.h>
+#include <utilities/threads/ItemSignal.h>
 
 #include <atomic>
 #include <cstddef>
 #include <memory>
 #include <optional>
-#include <semaphore>
-#include <stdexcept>
 
 namespace multithreading::structures::unbounded_queue {
 
-    struct LockFreeQueueConfig {
-        size_t maxUpdateDepth;
-    };
-
     template <typename T>
-    struct alignas(utilities::performance::CACHE_LINE_SIZE)
-        LockFreeNode {  // NOLINT(altera-struct-pack-align)
+    // A whole cache line per node is deliberate, so the packing check does not apply
+    // NOLINTNEXTLINE(altera-struct-pack-align)
+    struct alignas(utilities::performance::CACHE_LINE_SIZE) LockFreeNode {
     private:
         T value{};
         std::atomic<LockFreeNode*> nextNode{nullptr};
@@ -55,18 +51,13 @@ namespace multithreading::structures::unbounded_queue {
         }
     };
 
-    constexpr size_t DEFAULT_MAX_ATTEMPTS = 100;
-
     template <typename T>
     class LockFreeUnboundedQueueImpl {
     private:
-        size_t maxAlgorithmDepth;
-
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> head;
         utilities::performance::AlignedField<std::atomic<LockFreeNode<T>*>> tail;
-        // Default max is the platform's largest supported count (libstdc++ caps it at INT_MAX).
-        std::counting_semaphore<> items_available;
         utilities::performance::EpochReclamation<LockFreeNode<T>> epoch_reclamation;
+        utilities::threads::ItemSignal items_signal;
 
         static gsl::owner<LockFreeNode<T>*> create_dummy() {
             return new LockFreeNode<T>();
@@ -79,9 +70,9 @@ namespace multithreading::structures::unbounded_queue {
         void enqueue_node(std::unique_ptr<LockFreeNode<T>> newNode) {
             const utilities::performance::EpochGuard<LockFreeNode<T>> guard(&epoch_reclamation);
 
-            size_t iterator = 0;
-            while (iterator < maxAlgorithmDepth) {
-                iterator++;
+            // A failed attempt means another thread made progress, so retrying until this one
+            // succeeds is what keeps the queue lock-free
+            while (true) {
                 LockFreeNode<T>* last = tail.get().load(std::memory_order_acquire);
                 LockFreeNode<T>* next = last->next();
 
@@ -119,21 +110,12 @@ namespace multithreading::structures::unbounded_queue {
                     }
                 }
             }
-
-            throw std::runtime_error(
-                "Maximum enqueue_node() depth exceeded. It usually means that"
-                " there are a lot of threads competing at once. Consider"
-                " manually increasing the 'maxDepth' property in Queue"
-                " constructor to bypass this bottleneck"
-            );
         }
 
         std::optional<T> dequeue_node() {
             const utilities::performance::EpochGuard<LockFreeNode<T>> guard(&epoch_reclamation);
 
-            size_t iterator = 0;
-            while (iterator < maxAlgorithmDepth) {
-                iterator++;
+            while (true) {
                 LockFreeNode<T>* first = head.get().load(std::memory_order_acquire);
                 LockFreeNode<T>* last = tail.get().load(std::memory_order_acquire);
                 LockFreeNode<T>* firstValuable = first->next();
@@ -180,19 +162,10 @@ namespace multithreading::structures::unbounded_queue {
                     continue;
                 }
             }
-
-            throw std::runtime_error(
-                "Maximum dequeue_node() depth exceeded. It usually means that"
-                " there are a lot of threads competing at once. Consider"
-                " manually increasing the 'maxDepth' property in Queue"
-                " constructor to bypass this bottleneck"
-            );
         }
 
     public:
-        explicit LockFreeUnboundedQueueImpl(const size_t maxAlgorithmDepth)
-            : maxAlgorithmDepth(maxAlgorithmDepth)
-            , items_available(0) {
+        LockFreeUnboundedQueueImpl() {
             gsl::owner<LockFreeNode<T>*> dummy = create_dummy();
             head.get().store(dummy, std::memory_order_relaxed);
             tail.get().store(dummy, std::memory_order_relaxed);
@@ -200,7 +173,7 @@ namespace multithreading::structures::unbounded_queue {
 
         ~LockFreeUnboundedQueueImpl() {
             // No other thread can reach the queue any more, so walk the chain directly rather than
-            // through the bounded, throwing dequeue loop. Each node owns its value.
+            // through the dequeue loop. Each node owns its value.
             LockFreeNode<T>* node = head.get().load(std::memory_order_relaxed);
             while (node != nullptr) {
                 gsl::owner<const LockFreeNode<T>*> doomed = adopt(node);
@@ -216,8 +189,7 @@ namespace multithreading::structures::unbounded_queue {
 
         void enqueue(std::unique_ptr<LockFreeNode<T>> node) {
             enqueue_node(std::move(node));
-            // Tell semaphore we have 1 item enqueued
-            items_available.release(1);
+            items_signal.notify();
         }
 
         std::optional<T> try_dequeue() {
@@ -225,42 +197,13 @@ namespace multithreading::structures::unbounded_queue {
         }
 
         std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) {
-            const auto deadline = std::chrono::steady_clock::now() + timeout;
-
-            // We don't check the time equality inside the while loop as it is ID-based and
-            // affects performance in a bad way.
-            while (true) {
-                const auto now_time = std::chrono::steady_clock::now();
-                if (now_time >= deadline) {
-                    // Time limit exceeded, break from cycle.
-                    break;
-                }
-
-                // Wait for time left after previous iterations.
-                if (items_available.try_acquire_for(deadline - now_time)) {
-                    // If the value added to semaphore - try to dequeue it. It can still fail
-                    // in a racing condition with common .try_dequeue() callers.
-                    if (auto result = try_dequeue(); result.has_value()) {
-                        // Dequeue succeeded - return the result of operation.
-                        return result;
-                    }
-                    items_available.release(1);
-                } else {
-                    // Time limit exceeded, break from cycle.
-                    break;
-                }
-            }
-
-            // Final attempt to dequeue the value.
-            return try_dequeue();
+            return items_signal.wait_for(timeout, [this]() {
+                return try_dequeue();
+            });
         }
 
         [[nodiscard]] bool is_empty() const {
-            size_t iterator = 0;
-
-            while (iterator < maxAlgorithmDepth) {
-                iterator++;
-
+            while (true) {
                 const LockFreeNode<T>* first = head.get().load(std::memory_order_acquire);
                 const LockFreeNode<T>* last = tail.get().load(std::memory_order_acquire);
 
@@ -270,13 +213,6 @@ namespace multithreading::structures::unbounded_queue {
                     return first == last;
                 }
             }
-
-            throw std::runtime_error(
-                "Maximum is_empty() depth exceeded. It usually means that"
-                " there are a lot of threads competing at once. Consider"
-                " manually increasing the 'maxDepth' property in Queue"
-                " constructor to bypass this bottleneck"
-            );
         }
     };
 
@@ -286,14 +222,8 @@ namespace multithreading::structures::unbounded_queue {
         LockFreeUnboundedQueueImpl<T> impl;
 
     public:
-        explicit LockFreeUnboundedQueue(const LockFreeQueueConfig& config) noexcept
-            : UnboundedQueue<T>()
-            , impl({config.maxUpdateDepth}) {
-        }
-
-        LockFreeUnboundedQueue() noexcept
-            : UnboundedQueue<T>()
-            , impl(DEFAULT_MAX_ATTEMPTS) {
+        LockFreeUnboundedQueue()
+            : UnboundedQueue<T>() {
         }
 
         ~LockFreeUnboundedQueue() override = default;

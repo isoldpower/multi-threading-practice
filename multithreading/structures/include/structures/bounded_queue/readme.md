@@ -149,7 +149,7 @@ Each slot holds an atomic `sequence` number that encodes its state relative to t
 
 **Dequeue** mirrors this: it loads `dequeue_pos`, reads the slot's sequence, and proceeds only when `sequence == position + 1` (full). After a successful CAS on `dequeue_pos`, it takes the value and stores `position + capacity` as the new sequence, advancing the slot into the next lap's empty state.
 
-`wait_dequeue` uses a `std::counting_semaphore` — each successful enqueue releases one permit. The same race between `wait_dequeue` and concurrent `try_dequeue` callers as in the lock-free unbounded queue applies here.
+`wait_dequeue` sleeps on an `ItemSignal`, the same as the lock-free unbounded queue: an enqueue touches its semaphore only when a consumer is actually asleep. The same race between `wait_dequeue` and concurrent `try_dequeue` callers applies here.
 
 ---
 
@@ -163,7 +163,7 @@ Each slot holds an atomic `sequence` number that encodes its state relative to t
 | `is_empty` / `is_full` | O(1) amortized  | Consistency-checked atomic read loop                          |
 | Destructor             | O(n)            | Drains via `try_dequeue` loop                                 |
 
-"Amortized" accounts for CAS retry loops under contention. Unlike the lock-free unbounded queue, there is no `maxAlgorithmDepth` cap — the loops spin until they succeed or determine the queue is full/empty. Under pathological contention this can spin indefinitely.
+"Amortized" accounts for CAS retry loops under contention. As in the lock-free unbounded queue, the loops spin until they succeed or determine the queue is full/empty: a failed CAS means another thread made progress, but one unlucky thread can keep losing under pathological contention.
 
 ---
 

@@ -81,9 +81,7 @@ auto main() -> int {
         );
         const std::array queues{
             BenchmarkTask<UnboundedQueue<int>>(
-                std::make_shared<LockFreeUnboundedQueue<int>>(
-                    LockFreeQueueConfig{.maxUpdateDepth = 10000}
-                ),
+                std::make_shared<LockFreeUnboundedQueue<int>>(),
                 std::string{"Lock-free Queue Benchmark", std::allocator<char>{}}
             ),
             BenchmarkTask<UnboundedQueue<int>>(
@@ -94,7 +92,7 @@ auto main() -> int {
 
         const std::optional<int> executionResult = benchmarkApplication.SafeStart([&]() {
             multithreading::application::benchmarkApplication(queues);
-            return 1;
+            return 0;
         });
 
         return executionResult.has_value() ? executionResult.value() : -1;

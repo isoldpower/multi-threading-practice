@@ -591,3 +591,15 @@ TYPED_TEST(LinkedListTest, HighContentionMCMPEverywhere) {
     EXPECT_EQ(dequeue_count.load(std::memory_order_acquire), TEST_THREADS_COUNT * TEST_SAMPLE_SIZE);
     EXPECT_EQ(this->linked_list->size(), 0);
 }
+TYPED_TEST(LinkedListTest, OutlivesManyShortLivedThreads) {
+    // Each thread registers with the list's reclamation and exits; the list must keep working
+    constexpr size_t THREADS = 400;
+    for (size_t i = 0; i < THREADS; ++i) {
+        std::thread([&]() {
+            this->linked_list->push_front(this->make_value(static_cast<int>(i)));
+            EXPECT_TRUE(this->linked_list->pop_front().has_value());
+        }).join();
+    }
+
+    EXPECT_TRUE(this->linked_list->empty());
+}

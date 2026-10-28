@@ -109,7 +109,8 @@ namespace multithreading::benchmark {
                 return false;
             }
 
-            heartbeat_thread.join();
+            // Stop measuring before the join: the heartbeat may be mid-sleep, and waiting it out
+            // would add up to a whole heartbeat to every measured run
             {
                 const std::scoped_lock lock(measurements_mutex);
                 std::apply(
@@ -119,6 +120,7 @@ namespace multithreading::benchmark {
                     measurements
                 );
             }
+            heartbeat_thread.join();
 
             return true;
         }

@@ -1,3 +1,4 @@
+#include <application/structures_scenarios/Backoff.h>
 #include <application/structures_scenarios/mcmp/UnboundedQueueMCMPBenchmark.h>
 
 namespace multithreading::structures_scenarios::mcmp {
@@ -17,9 +18,9 @@ namespace multithreading::structures_scenarios::mcmp {
 
     void UnboundedQueueMCMPBenchmark::consumer_routine(const size_t threadSize) {
         for (size_t j = 0; j < threadSize; j++) {
-            while (!queue()->try_dequeue().has_value()) {
-                // Keep trying until we get a value
-            }
+            retry_with_backoff([&]() {
+                return queue()->try_dequeue().has_value();
+            });
         }
     }
 

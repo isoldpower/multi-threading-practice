@@ -2,6 +2,7 @@
 
 #include <structures/bounded_queue/BoundedQueue.h>
 #include <utilities/performance/AlignedField.h>
+#include <utilities/threads/ItemSignal.h>
 
 #include <atomic>
 #include <bit>
@@ -10,7 +11,6 @@
 #include <iterator>
 #include <memory>
 #include <optional>
-#include <semaphore>
 #include <utility>
 #include <vector>
 
@@ -38,7 +38,7 @@ namespace multithreading::structures::bounded_queue {
     private:
         const size_t capacity;
         std::vector<CircularSlot<T>> data;
-        std::counting_semaphore<> items_available;
+        utilities::threads::ItemSignal items_signal;
 
         // Producers and consumers each spin on their own position, so keep the two on separate
         // cache lines.
@@ -57,10 +57,7 @@ namespace multithreading::structures::bounded_queue {
     public:
         explicit LockFreeBoundedQueueImpl(const size_t capacity)
             : capacity(capacity)
-            // Explicit allocator: libstdc++ defaults it, which fuchsia-default-arguments-calls
-            // flags.
             , data(capacity, std::allocator<CircularSlot<T>>{})
-            , items_available(0)
             , enqueue_pos(0)
             , dequeue_pos(0) {
             for (size_t i = 0; i < capacity; ++i) {
@@ -108,33 +105,9 @@ namespace multithreading::structures::bounded_queue {
         }
 
         std::optional<T> wait_dequeue(const std::chrono::steady_clock::duration& timeout) {
-            const auto deadline = std::chrono::steady_clock::now() + timeout;
-
-            // We don't check the time equality inside the while loop as it is ID-based and
-            // affects performance in a bad way.
-            while (true) {
-                const auto now_time = std::chrono::steady_clock::now();
-                if (now_time >= deadline) {
-                    // Time limit exceeded, break from cycle.
-                    break;
-                }
-
-                // Wait for time left after previous iterations.
-                if (items_available.try_acquire_for(deadline - now_time)) {
-                    // If the value added to semaphore - try to dequeue it. It can still fail
-                    // in a racing condition with common .try_dequeue() callers.
-                    if (auto result = try_dequeue(); result.has_value()) {
-                        // Dequeue succeeded - return the result of operation.
-                        return result;
-                    }
-                } else {
-                    // Time limit exceeded, break from cycle.
-                    break;
-                }
-            }
-
-            // Final attempt to dequeue the value.
-            return try_dequeue();
+            return items_signal.wait_for(timeout, [this]() {
+                return try_dequeue();
+            });
         }
 
         bool try_enqueue(T&& value) {
@@ -171,7 +144,7 @@ namespace multithreading::structures::bounded_queue {
                     )) {
                     slot.value.emplace(std::move(value));
                     slot.sequence.store(position + 1, std::memory_order_release);
-                    items_available.release(1);
+                    items_signal.notify();
                     return true;
                 }
             }

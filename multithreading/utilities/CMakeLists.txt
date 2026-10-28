@@ -13,6 +13,7 @@ if (BUILD_TESTING)
             tests/threads/CountThreadBarrier_test.cpp
             tests/threads/ThreadBarrier_test.cpp
             tests/threads/RandomGenerator_test.cpp
+            tests/threads/ItemSignal_test.cpp
             tests/RandomEvent_test.cpp)
     target_link_libraries(utilities_tests PRIVATE GTest::gtest_main utilities)
     include(GoogleTest)
@@ -23,6 +24,7 @@ endif()
 target_include_directories(utilities
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(utilities)
 
 # Link dependencies
 target_link_libraries(utilities PUBLIC cxx_setup)

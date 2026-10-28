@@ -93,7 +93,7 @@ auto main() -> int {
 
         const std::optional<int> executionResult = benchmarkApplication.SafeStart([&]() {
             multithreading::application::benchmarkApplication(lists);
-            return 1;
+            return 0;
         });
 
         return executionResult.has_value() ? executionResult.value() : -1;

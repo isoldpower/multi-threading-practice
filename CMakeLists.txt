@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16..3.24)
+cmake_minimum_required(VERSION 3.19..3.24)
 project (multithreading
         VERSION 0.1.0
         DESCRIPTION "Set of tasks from the LETU university multi-threading course."
@@ -44,6 +44,11 @@ if(ENABLE_ASAN)
 endif()
 
 target_compile_features(cxx_setup INTERFACE cxx_std_20)
+
+function(attach_headers target)
+    file(GLOB_RECURSE target_headers CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
+    target_sources(${target} PRIVATE ${target_headers})
+endfunction()
 
 # Subdirectories
 add_subdirectory(external)
