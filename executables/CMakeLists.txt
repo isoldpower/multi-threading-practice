@@ -1,2 +1,3 @@
 add_subdirectory(structures)
 add_subdirectory(computing)
+add_subdirectory(test_gpu_compute)
