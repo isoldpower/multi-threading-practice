@@ -6,11 +6,11 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     class UnboundedQueueMCMPBenchmark final
-        : public multithreading::benchmark::mcmp::ProducerConsumerBenchmark,
+        : public benchmark::mcmp::ProducerConsumerBenchmark,
           UnboundedQueueBenchmark {
     public:
         explicit UnboundedQueueMCMPBenchmark(
-            const std::shared_ptr<multithreading::structures::unbounded_queue::UnboundedQueue<int>>&
+            const std::shared_ptr<structures::unbounded_queue::UnboundedQueue<int>>&
                 queue
         );
 

@@ -48,7 +48,8 @@ namespace multithreading::benchmark {
             snapshots.end(),
             size_t{0},
             [&](const size_t accumulated, const std::pair<std::chrono::nanoseconds, size_t>& item) {
-                return accumulated + (item.second - baseline);
+                const size_t overhead = item.second > baseline ? item.second - baseline : 0;
+                return accumulated + overhead;
             }
         );
         const auto snapshots_average =

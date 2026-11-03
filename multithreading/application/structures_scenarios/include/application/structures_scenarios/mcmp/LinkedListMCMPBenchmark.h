@@ -9,11 +9,11 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     class LinkedListMCMPBenchmark final
-        : public multithreading::benchmark::mcmp::ProducerConsumerBenchmark,
+        : public benchmark::mcmp::ProducerConsumerBenchmark,
           LinkedListBenchmark {
     public:
         explicit LinkedListMCMPBenchmark(
-            const std::shared_ptr<multithreading::structures::linked_list::LinkedList<int> >& list
+            const std::shared_ptr<structures::linked_list::LinkedList<int> >& list
         );
 
         void producer_routine(size_t threadSize) override;

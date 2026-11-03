@@ -33,7 +33,8 @@ namespace multithreading::benchmark {
                 std::ranges::less{},
                 std::identity{}
             );
-            recorded_result = std::abs(highest_snapshot - baseline);
+
+            recorded_result = std::max(0.0, highest_snapshot - baseline);
         }
     }
 

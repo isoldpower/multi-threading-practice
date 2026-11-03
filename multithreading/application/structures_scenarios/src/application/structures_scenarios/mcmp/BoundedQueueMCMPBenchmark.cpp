@@ -4,14 +4,13 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     BoundedQueueMCMPBenchmark::BoundedQueueMCMPBenchmark(
-        const std::shared_ptr<multithreading::structures::bounded_queue::BoundedQueue<int>>& queue
-    )
+        const std::shared_ptr<structures::bounded_queue::BoundedQueue<int>>& queue)
         : BoundedQueueBenchmark(queue) {
     }
 
     void BoundedQueueMCMPBenchmark::producer_routine(const size_t threadSize) {
         for (size_t j = 0; j < threadSize; j++) {
-            retry_with_backoff([&]() {
+            retry_with_backoff([&] {
                 return queue()->try_enqueue(static_cast<int>(j));
             });
         }
@@ -19,7 +18,7 @@ namespace multithreading::structures_scenarios::mcmp {
 
     void BoundedQueueMCMPBenchmark::consumer_routine(const size_t threadSize) {
         for (size_t j = 0; j < threadSize; j++) {
-            retry_with_backoff([&]() {
+            retry_with_backoff([&] {
                 return queue()->try_dequeue().has_value();
             });
         }

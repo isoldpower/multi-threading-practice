@@ -4,8 +4,7 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     LinkedListMCMPBenchmark::LinkedListMCMPBenchmark(
-        const std::shared_ptr<multithreading::structures::linked_list::LinkedList<int>>& list
-    )
+        const std::shared_ptr<structures::linked_list::LinkedList<int>>& list)
         : LinkedListBenchmark(list) {
     }
 
@@ -17,7 +16,7 @@ namespace multithreading::structures_scenarios::mcmp {
 
     void LinkedListMCMPBenchmark::consumer_routine(const size_t threadSize) {
         for (size_t j = 0; j < threadSize; j++) {
-            retry_with_backoff([&]() {
+            retry_with_backoff([&] {
                 return list()->pop_front().has_value();
             });
         }

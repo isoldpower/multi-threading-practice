@@ -4,9 +4,7 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     UnboundedQueueMCMPBenchmark::UnboundedQueueMCMPBenchmark(
-        const std::shared_ptr<multithreading::structures::unbounded_queue::UnboundedQueue<int>>&
-            queue
-    )
+        const std::shared_ptr<structures::unbounded_queue::UnboundedQueue<int>>& queue)
         : UnboundedQueueBenchmark(queue) {
     }
 
@@ -18,7 +16,7 @@ namespace multithreading::structures_scenarios::mcmp {
 
     void UnboundedQueueMCMPBenchmark::consumer_routine(const size_t threadSize) {
         for (size_t j = 0; j < threadSize; j++) {
-            retry_with_backoff([&]() {
+            retry_with_backoff([&] {
                 return queue()->try_dequeue().has_value();
             });
         }

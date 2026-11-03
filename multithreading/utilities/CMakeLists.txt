@@ -1,7 +1,6 @@
 # Compile files
 add_library(utilities
-        src/utilities/threads/ThreadBarrier.cpp
-)
+        src/utilities/threads/ThreadBarrier.cpp)
 
 # Tests setup
 if (BUILD_TESTING)
