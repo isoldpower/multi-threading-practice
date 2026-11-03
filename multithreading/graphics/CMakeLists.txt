@@ -26,8 +26,18 @@ endif()
 # Tests setup
 if (BUILD_TESTING)
     add_executable(graphics_tests
-            tests/placeholder_test.cpp)
+            tests/GraphicsFactory_test.cpp
+            tests/GraphicsDevice_test.cpp
+            tests/GraphicsCommandList_test.cpp)
     target_link_libraries(graphics_tests PRIVATE GTest::gtest_main graphics)
+
+    # Without a test shader library the GPU tests skip themselves
+    if (CMAKE_Metal_COMPILER)
+        add_metal_shader_library(graphics_test_shaders STANDARD metal3.0 tests/shaders/graphics_test.metal)
+        add_dependencies(graphics_tests graphics_test_shaders)
+        target_compile_definitions(graphics_tests
+                PRIVATE MT_GRAPHICS_TEST_LIBRARY="$<TARGET_FILE:graphics_test_shaders>")
+    endif ()
     include(GoogleTest)
     gtest_discover_tests(graphics_tests)
 endif()
