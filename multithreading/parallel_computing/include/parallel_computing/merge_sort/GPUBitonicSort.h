@@ -44,7 +44,8 @@ namespace multithreading::parallel_computing::merge_sort {
             const auto buffer = device.allocate_shared(std::size_t{padded_count} * sizeof(T));
 
             GPUSortContext::upload<T>(values, *buffer, 0);
-            const std::vector<T> padding(padded_count - values.size(), padding_value());
+            const std::vector<T> padding(
+                padded_count - values.size(), padding_value(), std::allocator<T>{});
             GPUSortContext::upload<T>(padding, *buffer, values.size());
 
             const graphics::GraphicsKernel& global_kernel = context->kernel<T>("bitonic_step");

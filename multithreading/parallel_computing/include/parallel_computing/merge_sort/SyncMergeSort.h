@@ -3,6 +3,7 @@
 #include <parallel_computing/merge_sort/MergeSort.h>
 
 #include <functional>
+#include <memory>
 #include <span>
 #include <vector>
 
@@ -18,7 +19,8 @@ namespace multithreading::parallel_computing::merge_sort {
                 return;
             }
 
-            std::vector<T> buffer(values.size());
+            std::vector<T> buffer(std::allocator<T>{});
+            buffer.resize(values.size());
             MergeSort<T, Compare>::sort_sequentially(values, buffer, 0, values.size(), compare);
         }
     };

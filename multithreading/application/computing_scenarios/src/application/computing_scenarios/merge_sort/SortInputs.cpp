@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <limits>
+#include <memory>
 #include <random>
 
 namespace multithreading::computing_scenarios::merge_sort {
@@ -14,7 +15,7 @@ namespace multithreading::computing_scenarios::merge_sort {
         );
 
         for (const std::size_t size : sizes) {
-            std::vector<int> values(size);
+            std::vector<int> values(size, 0, std::allocator<int>{});
             std::ranges::generate(values, [&]() {
                 return distribution(generator);
             });

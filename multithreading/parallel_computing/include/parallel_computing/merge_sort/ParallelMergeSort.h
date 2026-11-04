@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <exception>
 #include <functional>
+#include <memory>
 #include <span>
 #include <stdexcept>
 #include <thread>
@@ -34,7 +35,8 @@ namespace multithreading::parallel_computing::merge_sort {
                 return;
             }
 
-            std::vector<T> buffer(values.size());
+            std::vector<T> buffer(std::allocator<T>{});
+            buffer.resize(values.size());
             fork_and_sort(values, buffer, 0, values.size(), 0, compare);
         }
 
