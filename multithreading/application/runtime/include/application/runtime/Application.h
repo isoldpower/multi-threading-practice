@@ -10,7 +10,7 @@
 #include <string>
 #include <utility>
 
-namespace multithreading::utilities {
+namespace multithreading::runtime {
 
     constexpr size_t APPLICATION_INFO_ALIGNMENT = 128;
 
@@ -77,4 +77,4 @@ namespace multithreading::utilities {
             return executionResults;
         }
     };
-}  // namespace multithreading::utilities
+}  // namespace multithreading::runtime

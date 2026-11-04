@@ -8,17 +8,13 @@ namespace multithreading::structures_scenarios {
 
     class BoundedQueueBenchmark {
     private:
-        std::shared_ptr<multithreading::structures::bounded_queue::BoundedQueue<int>>
-            benchmark_queue;
+        std::shared_ptr<structures::bounded_queue::BoundedQueue<int>> benchmark_queue;
 
     protected:
         explicit BoundedQueueBenchmark(
-            const std::shared_ptr<multithreading::structures::bounded_queue::BoundedQueue<int>>&
-                queue
-        );
+            const std::shared_ptr<structures::bounded_queue::BoundedQueue<int>>& queue);
 
-        [[nodiscard]] const std::shared_ptr<
-            multithreading::structures::bounded_queue::BoundedQueue<int>>&
+        [[nodiscard]] const std::shared_ptr<structures::bounded_queue::BoundedQueue<int>>&
         queue() const noexcept {
             return benchmark_queue;
         }

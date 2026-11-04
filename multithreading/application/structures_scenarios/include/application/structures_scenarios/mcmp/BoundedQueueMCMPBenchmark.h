@@ -6,11 +6,11 @@
 namespace multithreading::structures_scenarios::mcmp {
 
     class BoundedQueueMCMPBenchmark final
-        : public multithreading::benchmark::mcmp::ProducerConsumerBenchmark,
+        : public benchmark::mcmp::ProducerConsumerBenchmark,
           BoundedQueueBenchmark {
     public:
         explicit BoundedQueueMCMPBenchmark(
-            const std::shared_ptr<multithreading::structures::bounded_queue::BoundedQueue<int>>&
+            const std::shared_ptr<structures::bounded_queue::BoundedQueue<int>>&
                 queue
         );
 

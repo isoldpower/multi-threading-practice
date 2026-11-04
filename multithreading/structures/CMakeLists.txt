@@ -1,8 +1,5 @@
-# Compile files
-add_library(structures
-        # Header-only library still needs one translation unit to be checked
-        src/structures/placeholder.cpp
-)
+# Header-only: the structures are templates, so nothing compiles until a consumer picks a type.
+add_library(structures INTERFACE)
 
 # Tests setup
 if (BUILD_TESTING)
@@ -17,8 +14,9 @@ endif()
 
 # Expose settings
 target_include_directories(structures
-        PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
+        INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(structures)
 
 # Link dependencies
-target_link_libraries(structures PUBLIC utilities cxx_setup)
+target_link_libraries(structures INTERFACE utilities cxx_setup)

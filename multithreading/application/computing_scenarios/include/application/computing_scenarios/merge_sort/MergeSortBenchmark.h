@@ -1,25 +1,28 @@
 #pragma once
 
+#include <application/computing_scenarios/merge_sort/SortInputs.h>
+#include <benchmark/BenchmarkMatrix.h>
+#include <benchmark/BenchmarkRunner.h>
 #include <parallel_computing/merge_sort/MergeSort.h>
 
+#include <cstddef>
+#include <functional>
 #include <memory>
 
 namespace multithreading::computing_scenarios::merge_sort {
 
-    class MergeSortBenchmark {
+    using IntMergeSort = parallel_computing::merge_sort::MergeSort<int>;
+
+    using SorterFactory = std::function<std::unique_ptr<IntMergeSort>(std::size_t threads_count)>;
+
+    class MergeSortBenchmark final : public benchmark::BenchmarkRunner {
     private:
-        std::shared_ptr<parallel_computing::merge_sort::MergeSort> benchmark_sort;
+        SorterFactory sorter_factory;
+        std::shared_ptr<const SortInputs> inputs;
 
-    protected:
-        explicit MergeSortBenchmark(
-            const std::shared_ptr<parallel_computing::merge_sort::MergeSort>& sort
-        );
+    public:
+        MergeSortBenchmark(SorterFactory sorter_factory, std::shared_ptr<const SortInputs> inputs);
 
-        [[nodiscard]] const std::shared_ptr<
-            parallel_computing::merge_sort::MergeSort>&
-        sort() const noexcept {
-            return benchmark_sort;
-        }
+        void run_benchmark_with(const benchmark::BenchmarkMatrixItem& item) override;
     };
-
 }  // namespace multithreading::computing_scenarios::merge_sort

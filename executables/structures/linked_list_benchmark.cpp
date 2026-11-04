@@ -1,3 +1,4 @@
+#include <application/runtime/Application.h>
 #include <application/structures_scenarios/ThreadConfig.h>
 #include <application/structures_scenarios/mcmp/LinkedListMCMPBenchmark.h>
 #include <benchmark/AverageMemoryMeasurement.h>
@@ -12,7 +13,6 @@
 #include <structures/linked_list/FGLockLinkedList.h>
 #include <structures/linked_list/LinkedList.h>
 #include <structures/linked_list/LockFreeLinkedList.h>
-#include <utilities/Application.h>
 
 #include <array>
 #include <iostream>
@@ -71,8 +71,8 @@ namespace multithreading::application {
 
 auto main() -> int {
     try {
-        multithreading::utilities::Application benchmarkApplication(
-            multithreading::utilities::ApplicationInfo<int>{
+        multithreading::runtime::Application benchmarkApplication(
+            multithreading::runtime::ApplicationInfo<int>{
                 .appName = std::string{"Linked List Benchmark", std::allocator<char>{}},
                 .appVersion = std::string{"1.0.0", std::allocator<char>{}},
                 .beforeTask = std::nullopt,
@@ -93,7 +93,7 @@ auto main() -> int {
 
         const std::optional<int> executionResult = benchmarkApplication.SafeStart([&]() {
             multithreading::application::benchmarkApplication(lists);
-            return 1;
+            return 0;
         });
 
         return executionResult.has_value() ? executionResult.value() : -1;

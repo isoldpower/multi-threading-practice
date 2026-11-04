@@ -14,6 +14,7 @@ add_library(multithreading_structures_scenarios
 target_include_directories(multithreading_structures_scenarios
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(multithreading_structures_scenarios)
 
 # Link dependencies
 target_link_libraries(multithreading_structures_scenarios PUBLIC structures benchmark cxx_setup)

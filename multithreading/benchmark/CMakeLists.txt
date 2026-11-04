@@ -20,6 +20,7 @@ endif()
 target_include_directories(benchmark
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
+attach_headers(benchmark)
 
 # Link dependencies
 target_link_libraries(benchmark PUBLIC utilities cxx_setup)

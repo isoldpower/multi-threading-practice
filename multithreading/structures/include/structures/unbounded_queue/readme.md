@@ -118,13 +118,11 @@ Enqueue and dequeue **do not contend with each other**, only with operations of 
 
 `LockFreeUnboundedQueue<T>` is a thread-safe unbounded FIFO queue that avoids mutexes entirely, relying instead on **atomic CAS (Compare-And-Swap) operations** for synchronization. It is based on the **Michael-Scott queue algorithm** and uses a **sentinel (dummy) head node** identical in purpose to the fine-grained lock version.
 
-The implementation is configurable via `LockFreeQueueConfig`, which allows tuning the maximum number of CAS retry attempts (`maxUpdateDepth`) before the algorithm gives up and throws. The default is `100` attempts.
-
 ---
 
 ### Algorithm — Michael-Scott Queue with Cooperative Tail Advancement
 
-The queue is a singly-linked list where both `head` and `tail` are `cache-line aligned` atomic pointers (`AlignedField`), preventing false sharing between producers and consumers. All operations follow a **CAS retry loop** bounded by `maxAlgorithmDepth`.
+The queue is a singly-linked list where both `head` and `tail` are `cache-line aligned` atomic pointers (`AlignedField`), preventing false sharing between producers and consumers. All operations follow a **CAS retry loop** that runs until it succeeds: a failed CAS means another thread's operation went through, so the queue as a whole always makes progress.
 
 **Enqueue** works in two steps:
 1. CAS `last->next` from `nullptr` to the new node, linking it into the list.
@@ -134,7 +132,7 @@ The queue is a singly-linked list where both `head` and `tail` are `cache-line a
 
 **Cooperative tail advancement:** Both enqueue and dequeue detect a stale `tail` (i.e. `tail->next != nullptr`) and attempt to advance it on behalf of the thread that performed the enqueue but hasn't yet updated `tail`. This prevents the tail from falling arbitrarily far behind under concurrent enqueues.
 
-`wait_dequeue` uses a `std::counting_semaphore` rather than a condition variable. Each enqueue releases the semaphore by one; `wait_dequeue` acquires it with `try_acquire_for`, then calls `try_dequeue`. Because `try_dequeue` callers can race with `wait_dequeue` for the same item, a successful semaphore acquire does not guarantee a successful dequeue — the loop retries until the deadline is reached, with a final `try_dequeue` attempt after expiry.
+`wait_dequeue` sleeps on an `ItemSignal` (a semaphore plus a count of sleeping consumers) rather than a condition variable. An enqueue touches the semaphore only when a consumer is actually asleep, so producers pay nothing for `wait_dequeue` when nobody uses it. A waiter checks the queue before every sleep, and a fence on each side guarantees that an item published while a consumer was going to sleep is either seen by that consumer or wakes it. Because `try_dequeue` callers can race with `wait_dequeue` for the same item, a wake-up does not guarantee a successful dequeue — the loop retries until the deadline is reached, with a final `try_dequeue` attempt after expiry.
 
 ---
 
@@ -142,19 +140,17 @@ The queue is a singly-linked list where both `head` and `tail` are `cache-line a
 
 | Operation      | Time Complexity | Notes                                                           |
 |----------------|-----------------|-----------------------------------------------------------------|
-| `enqueue`      | O(1) amortized  | Retries on CAS failure; bounded by `maxAlgorithmDepth`          |
-| `try_dequeue`  | O(1) amortized  | Retries on CAS failure; bounded by `maxAlgorithmDepth`          |
-| `wait_dequeue` | O(1) amortized  | Semaphore-based; may retry on race with `try_dequeue` callers   |
-| `is_empty`     | O(1) amortized  | Consistency-checked atomic read; bounded by `maxAlgorithmDepth` |
-| Destructor     | O(n)            | Drains via `try_dequeue` loop                                   |
+| `enqueue`      | O(1) amortized  | Retries on CAS failure until it succeeds                        |
+| `try_dequeue`  | O(1) amortized  | Retries on CAS failure until it succeeds                        |
+| `wait_dequeue` | O(1) amortized  | Sleeps on `ItemSignal`; may retry on race with `try_dequeue`    |
+| `is_empty`     | O(1) amortized  | Consistency-checked atomic read, retried until consistent       |
+| Destructor     | O(n)            | Walks and frees the remaining chain                             |
 
-"Amortized" accounts for CAS retry loops under contention. In the worst case a thread can be repeatedly preempted and retry up to `maxAlgorithmDepth` times before throwing.
+"Amortized" accounts for CAS retry loops under contention. The queue is lock-free, not wait-free: some thread always completes, but one unlucky thread can lose many races in a row under heavy contention before its own operation goes through.
 
 ---
 
 ### Pitfalls and Limitations
-
-**`maxAlgorithmDepth` exhaustion throws.** Unlike most concurrent structures that spin indefinitely, this implementation throws `std::runtime_error` if the retry limit is exceeded in `enqueue_node`, `dequeue_node`, or `is_empty`. This is a deliberate safety valve against livelock under extreme contention, but callers must be prepared to catch it. The default of 100 attempts is generous for most workloads, but should be increased for very high thread counts.
 
 **`wait_dequeue` can race with `try_dequeue`.** The semaphore count and the actual queue contents are not updated atomically. A `try_dequeue` call concurrent with `wait_dequeue` may consume the item the semaphore signaled for, causing `wait_dequeue` to loop and re-check the deadline. In the worst case, repeated `try_dequeue` calls can starve a waiting `wait_dequeue` caller until its deadline expires.
 

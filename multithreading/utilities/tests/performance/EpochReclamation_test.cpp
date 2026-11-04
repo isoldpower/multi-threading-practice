@@ -4,6 +4,9 @@
 #include <utilities/threads/ThreadBarrier.h>
 
 #include <algorithm>
+#include <atomic>
+#include <optional>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -118,33 +121,50 @@ TEST(EpochReclamationTest, MultipleThreadsGetDistinctSlots) {
 }
 
 TEST(EpochReclamationTest, ExceedingMaxThreadsThrows) {
+    // One thread more than there are slots, all holding guards at the same moment: exactly one
+    // must be refused. Nobody is released until every thread has tried, as a thread that left
+    // early would hand its slot to a later one.
+    constexpr size_t THREAD_COUNT = multithreading::utilities::performance::MAX_THREADS + 1;
     multithreading::utilities::performance::EpochReclamation<int> reclamation;
     std::vector<std::thread> threads;
     std::atomic<size_t> throw_count{0};
     std::mutex start_mu;
     std::condition_variable start_cv;
-
+    size_t attempted = 0;
     bool start = false;
-    threads.reserve(multithreading::utilities::performance::MAX_THREADS + 1);
-    for (size_t i = 0; i < multithreading::utilities::performance::MAX_THREADS + 1; ++i) {
+
+    const auto report_attempt = [&]() {
+        {
+            const std::scoped_lock lock(start_mu);
+            ++attempted;
+        }
+        start_cv.notify_all();
+    };
+
+    threads.reserve(THREAD_COUNT);
+    for (size_t i = 0; i < THREAD_COUNT; ++i) {
         threads.emplace_back([&]() {
             try {
                 const multithreading::utilities::performance::EpochGuard guard(&reclamation);
+                report_attempt();
                 std::unique_lock lock(start_mu);
                 start_cv.wait(lock, [&] {
                     return start;
                 });
             } catch (const std::runtime_error&) {
                 throw_count.fetch_add(1, std::memory_order_relaxed);
+                report_attempt();
             }
         });
     }
 
     {
-        const std::scoped_lock lock(start_mu);
+        std::unique_lock lock(start_mu);
+        start_cv.wait(lock, [&] {
+            return attempted == THREAD_COUNT;
+        });
         start = true;
     }
-
     start_cv.notify_all();
     for (auto& thread : threads) {
         thread.join();
@@ -212,4 +232,97 @@ TEST(EpochReclamationTest, EpochDoesNotAdvanceWhileThreadActive) {
     cleanup.join();
 
     EXPECT_TRUE(deleted);
+}
+
+TEST(EpochReclamationTest, InnerGuardEndingKeepsOuterGuardProtected) {
+    // Declared first, so it outlives the reclamation, which frees into it when destroyed
+    bool deleted = false;
+    multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>>
+        tracked_reclamation;
+
+    const multithreading::utilities::performance::EpochGuard outer(&tracked_reclamation);
+    tracked_reclamation.retire_reference(new TrackDeleted{&deleted});
+    {
+        const multithreading::utilities::performance::EpochGuard inner(&tracked_reclamation);
+    }
+
+    // The outer guard is still reading, so no amount of work elsewhere may free the node
+    std::thread churn([&]() {
+        for (
+            size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 5; ++i
+        ) {
+            const multithreading::utilities::performance::EpochGuard guard(&tracked_reclamation);
+        }
+    });
+    churn.join();
+
+    EXPECT_FALSE(deleted);
+}
+
+TEST(EpochReclamationTest, ReclamationAtReusedAddressGivesFreshSlots) {
+    using Reclamation =
+        multithreading::utilities::performance::EpochReclamation<TrackDeleted<bool>>;
+    // Declared first, so it outlives the reclamation, which frees into it when destroyed
+    bool deleted = false;
+    std::optional<Reclamation> reclamation;
+
+    // This thread registers with the first instance and then outlives it
+    reclamation.emplace();
+    {
+        const multithreading::utilities::performance::EpochGuard guard(&*reclamation);
+    }
+    reclamation.reset();
+    reclamation.emplace();
+
+    // Another thread registers with the new instance first, taking its first slot. Had this
+    // thread kept its slot from the old instance, both would now share it, and the other thread
+    // leaving its guards would hide this thread's guard from reclamation
+    std::atomic<bool> registered{false};
+    std::atomic<bool> may_churn{false};
+    std::thread other([&]() {
+        {
+            const multithreading::utilities::performance::EpochGuard guard(&*reclamation);
+        }
+        registered.store(true, std::memory_order_release);
+        while (!may_churn.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+        for (
+            size_t i = 0; i < multithreading::utilities::performance::RECLAMATION_FREQUENCY * 5; ++i
+        ) {
+            const multithreading::utilities::performance::EpochGuard guard(&*reclamation);
+        }
+    });
+    while (!registered.load(std::memory_order_acquire)) {
+        std::this_thread::yield();
+    }
+
+    {
+        const multithreading::utilities::performance::EpochGuard guard(&*reclamation);
+        reclamation->retire_reference(new TrackDeleted{&deleted});
+
+        may_churn.store(true, std::memory_order_release);
+        other.join();
+
+        EXPECT_FALSE(deleted);
+    }
+}
+
+TEST(EpochReclamationTest, ExitedThreadsHandTheirSlotsBack) {
+    // Far more threads than slots, one after another: each must get the slot the last one freed
+    multithreading::utilities::performance::EpochReclamation<int> reclamation;
+    std::atomic<size_t> failures{0};
+
+    for (size_t i = 0; i < multithreading::utilities::performance::MAX_THREADS * 3; ++i) {
+        std::thread([&]() {
+            try {
+                const multithreading::utilities::performance::EpochGuard guard(&reclamation);
+                reclamation.retire_reference(new int(static_cast<int>(i)));
+            } catch (const std::runtime_error&) {
+                failures.fetch_add(1, std::memory_order_relaxed);
+            }
+        }).join();
+    }
+
+    EXPECT_EQ(failures.load(), 0U);
 }

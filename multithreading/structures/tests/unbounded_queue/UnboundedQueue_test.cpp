@@ -4,7 +4,11 @@
 #include <utilities/tests/AmorphicTest.h>
 #include <utilities/threads/ThreadBarrier.h>
 
+#include <atomic>
+#include <chrono>
 #include <memory>
+#include <thread>
+#include <vector>
 
 constexpr size_t TEST_SAMPLE_SIZE = 10;
 
@@ -299,5 +303,53 @@ TYPED_TEST(UnboundedQueueTest, SevereContentionMCMPResolution) {
         enqueue_count.load(std::memory_order_acquire),
         dequeue_count.load(std::memory_order_acquire)
     );
+    EXPECT_TRUE(this->queue->is_empty());
+}
+TYPED_TEST(UnboundedQueueTest, ConcurrentWaitDequeueLosesNoItem) {
+    // A lost wake-up leaves a consumer asleep until its timeout, which then returns empty
+    constexpr size_t PRODUCERS = 4;
+    constexpr size_t CONSUMERS = 4;
+    constexpr size_t ITEMS_PER_PRODUCER = 2000;
+    std::atomic<size_t> received{0};
+    std::atomic<size_t> timed_out{0};
+
+    std::vector<std::thread> threads;
+    threads.reserve(PRODUCERS + CONSUMERS);
+    for (size_t i = 0; i < CONSUMERS; ++i) {
+        threads.emplace_back([&]() {
+            for (size_t j = 0; j < PRODUCERS * ITEMS_PER_PRODUCER / CONSUMERS; ++j) {
+                if (this->queue->wait_dequeue(std::chrono::seconds(5)).has_value()) {
+                    received.fetch_add(1, std::memory_order_relaxed);
+                } else {
+                    timed_out.fetch_add(1, std::memory_order_relaxed);
+                }
+            }
+        });
+    }
+    for (size_t i = 0; i < PRODUCERS; ++i) {
+        threads.emplace_back([&]() {
+            for (size_t j = 0; j < ITEMS_PER_PRODUCER; ++j) {
+                this->queue->enqueue(this->make_value(static_cast<int>(j)));
+            }
+        });
+    }
+    for (auto& thread : threads) {
+        thread.join();
+    }
+
+    EXPECT_EQ(timed_out.load(), 0U);
+    EXPECT_EQ(received.load(), PRODUCERS * ITEMS_PER_PRODUCER);
+}
+
+TYPED_TEST(UnboundedQueueTest, OutlivesManyShortLivedThreads) {
+    // Each thread registers with the queue's reclamation and exits; the queue must keep working
+    constexpr size_t THREADS = 400;
+    for (size_t i = 0; i < THREADS; ++i) {
+        std::thread([&]() {
+            this->queue->enqueue(this->make_value(static_cast<int>(i)));
+            EXPECT_TRUE(this->queue->try_dequeue().has_value());
+        }).join();
+    }
+
     EXPECT_TRUE(this->queue->is_empty());
 }

@@ -1,5 +1,5 @@
+#include <application/runtime/Application.h>
 #include <gtest/gtest.h>
-#include <utilities/Application.h>
 #include <utilities/tests/Output.h>
 
 #include <optional>
@@ -7,8 +7,8 @@
 #include <string>
 #include <vector>
 
-using multithreading::utilities::Application;
-using multithreading::utilities::ApplicationInfo;
+using multithreading::runtime::Application;
+using multithreading::runtime::ApplicationInfo;
 using multithreading::utilities::tests::suppress_stdout;
 
 TEST(ApplicationTest, SafeStartReturnsTaskResult) {

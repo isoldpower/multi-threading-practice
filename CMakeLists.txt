@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.16..3.24)
+cmake_minimum_required(VERSION 3.26)
 project (multithreading
         VERSION 0.1.0
         DESCRIPTION "Set of tasks from the LETU university multi-threading course."
-        LANGUAGES CXX)
+        LANGUAGES C CXX)
 
 if (NOT CMAKE_BUILD_TYPE)
     set (CMAKE_BUILD_TYPE Release CACHE STRING "Type of the build" FORCE)
@@ -25,6 +25,10 @@ endif()
 # Shared compiler settings; libraries expose their own include roots.
 add_library(cxx_setup INTERFACE)
 
+# Include GPU computation libraries
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/external/metal-cmake")
+include(EnableMetal)
+
 # General compiler options
 if (MSVC)
     target_compile_options(cxx_setup INTERFACE /W4 /WX /permissive-)
@@ -44,6 +48,11 @@ if(ENABLE_ASAN)
 endif()
 
 target_compile_features(cxx_setup INTERFACE cxx_std_20)
+
+function(attach_headers target)
+    file(GLOB_RECURSE target_headers CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h)
+    target_sources(${target} PRIVATE ${target_headers})
+endfunction()
 
 # Subdirectories
 add_subdirectory(external)

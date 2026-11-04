@@ -5,6 +5,7 @@
 #include <utilities/performance/Owner.h>
 
 #include <algorithm>
+#include <atomic>
 #include <bit>
 #include <functional>
 #include <memory>
@@ -72,7 +73,9 @@ namespace multithreading::structures::linked_list {
     class FGLockLinkedListImpl {
     private:
         gsl::owner<FGLockNode<T>*> head;
-        FGLockNode<T>* tail;
+        // Written only under tail_mutex, but read without it to skip that lock in the common case
+        // where an operation's locked node is not the tail
+        std::atomic<FGLockNode<T>*> tail;
 
         std::mutex tail_mutex;
         std::mutex count_mutex;
@@ -127,7 +130,7 @@ namespace multithreading::structures::linked_list {
 
             if (current_head == nullptr) {
                 const std::scoped_lock lock(tail_mutex);
-                tail = new_node;
+                tail.store(new_node, std::memory_order_release);
             }
 
             head->dispose();
@@ -140,11 +143,12 @@ namespace multithreading::structures::linked_list {
             while (true) {
                 std::unique_lock<std::mutex> tail_lock(tail_mutex);
 
-                if (tail->try_operate()) {
+                FGLockNode<T>* last = tail.load(std::memory_order_acquire);
+                if (last->try_operate()) {
                     // Update last node's contents after successfully locking it.
-                    tail->set_next(new_node);
-                    tail->dispose();
-                    tail = new_node;
+                    last->set_next(new_node);
+                    last->dispose();
+                    tail.store(new_node, std::memory_order_release);
 
                     // Increase the current size of the list.
                     increment_count();
@@ -189,9 +193,9 @@ namespace multithreading::structures::linked_list {
             new_node->set_next(iterator_node->next());
             iterator_node->set_next(new_node);
             // If the element we push is the last node, then update the tail reference.
-            if (iterator_node == tail) {
+            if (iterator_node == tail.load(std::memory_order_acquire)) {
                 const std::scoped_lock lock(tail_mutex);
-                tail = new_node;
+                tail.store(new_node, std::memory_order_release);
             }
             // Update the counter to be up-to-date with actual list size.
             increment_count();
@@ -214,9 +218,11 @@ namespace multithreading::structures::linked_list {
             head->set_next(current_head->next());
             // If the node deleted was the last one (only one node in the list), then we
             // need to update the tail reference to be up-to-date.
-            if (current_head == tail) {
+            // This thread holds current_head's lock, so no other operation can make it the tail; a
+            // mismatch read without the lock is final, and only a match needs the lock
+            if (current_head == tail.load(std::memory_order_acquire)) {
                 const std::scoped_lock lock(tail_mutex);
-                tail = head;
+                tail.store(head, std::memory_order_release);
             }
             // Actually delete the node that is now out of the list. Unlock before freeing memory.
             head->dispose();
@@ -262,7 +268,7 @@ namespace multithreading::structures::linked_list {
                 // Update the pre-last (iterator_node) and tail references.
                 const std::scoped_lock lock(tail_mutex);
                 iterator_node->set_next(nullptr);
-                tail = iterator_node;
+                tail.store(iterator_node, std::memory_order_release);
             }
 
             // Screen the last node value and delete the last node (iterator_next).
@@ -311,9 +317,9 @@ namespace multithreading::structures::linked_list {
             T result = iterator_next->value();
             iterator_node->set_next(iterator_next->next());
             // Safely update the tail reference if required.
-            if (iterator_next == tail) {
+            if (iterator_next == tail.load(std::memory_order_acquire)) {
                 const std::scoped_lock lock(tail_mutex);
-                tail = iterator_node;
+                tail.store(iterator_node, std::memory_order_release);
             }
 
             // Release locks, delete the node that is not in the list anymore.

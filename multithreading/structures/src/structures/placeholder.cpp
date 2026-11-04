@@ -1,9 +1,0 @@
-#include <structures/bounded_queue/BoundedQueue.h>
-#include <structures/bounded_queue/FGLockBoundedQueue.h>
-#include <structures/bounded_queue/LockFreeBoundedQueue.h>
-#include <structures/linked_list/FGLockLinkedList.h>
-#include <structures/linked_list/LinkedList.h>
-#include <structures/linked_list/LockFreeLinkedList.h>
-#include <structures/unbounded_queue/FGLockUnboundedQueue.h>
-#include <structures/unbounded_queue/LockFreeUnboundedQueue.h>
-#include <structures/unbounded_queue/UnboundedQueue.h>
