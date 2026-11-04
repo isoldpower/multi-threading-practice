@@ -138,7 +138,7 @@ namespace multithreading::parallel_computing::merge_sort {
         std::unordered_map<std::string, std::unique_ptr<graphics::GraphicsKernel>> kernels;
 
         static std::string kernel_name(const std::string_view algorithm, const std::string_view type) {
-            std::string name(algorithm);
+            std::string name(algorithm, std::allocator<char>{});
             name += '_';
             name += type;
             return name;

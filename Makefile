@@ -7,8 +7,8 @@ CLEAN ?= 0
 PRESERVE ?= 0
 LINUX_IMAGE ?= multi-threading-practice-linux
 LINUX_PLATFORM ?= linux/amd64
-LINUX_CPP_COMPILER ?= g++
-LINUX_C_COMPILER ?= gcc
+# Compiler pairs (C:C++) run by test-linux, the same ones the ubuntu CI legs use
+LINUX_COMPILERS ?= gcc:g++ clang:clang++
 
 compile:
 	if test "$(CLEAN)" -eq "1" && test -d "$(BUILD_DIR)"; then rm -rf "$(BUILD_DIR)"; fi
@@ -39,9 +39,18 @@ test-asan:
 
 linux-image:
 	docker build --platform "$(LINUX_PLATFORM)" -t "$(LINUX_IMAGE)" -f docker/linux.Dockerfile docker
+# Runs what each ubuntu CI leg runs: a clean Release build, then the Debug test suite
 test-linux: linux-image
-	docker run --rm --platform "$(LINUX_PLATFORM)" -v "$(CURDIR):/src:ro" -w /src "$(LINUX_IMAGE)" \
-	       sh -c 'CMAKE_BUILD_PARALLEL_LEVEL=$$(nproc) make test BUILD_DIR=/tmp/build \
-	              CPP_COMPILER="$(LINUX_CPP_COMPILER)" C_COMPILER="$(LINUX_C_COMPILER)"'
+	for pair in $(LINUX_COMPILERS); do \
+	    c_compiler=$${pair%%:*}; cpp_compiler=$${pair##*:}; \
+	    echo "==> Linux $$cpp_compiler"; \
+	    docker run --rm --platform "$(LINUX_PLATFORM)" -v "$(CURDIR):/src:ro" -w /src "$(LINUX_IMAGE)" \
+	        sh -c "export CMAKE_BUILD_PARALLEL_LEVEL=\$$(nproc) \
+	               && make rebuild BUILD_DIR=/tmp/build BUILD_TYPE=Release \
+	                       CPP_COMPILER=$$cpp_compiler C_COMPILER=$$c_compiler \
+	               && make test BUILD_DIR=/tmp/build \
+	                       CPP_COMPILER=$$cpp_compiler C_COMPILER=$$c_compiler" \
+	        || exit 1; \
+	done
 
 .PHONY: compile rebuild rebuild-debug rebuild-release rebuild-asan test test-asan linux-image test-linux
